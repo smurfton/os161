@@ -35,6 +35,10 @@
  * functions.
  */
 
+/*
+ * Test Hello World Function
+ */
+void hello(void);
 
 /* This is only actually available if OPT_SYNCHPROBS is set. */
 int whalemating(int, char **);

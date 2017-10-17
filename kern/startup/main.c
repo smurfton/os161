@@ -30,7 +30,6 @@
 /*
  * Main.
  */
-
 #include <types.h>
 #include <kern/errno.h>
 #include <kern/reboot.h>
@@ -103,6 +102,7 @@ boot(void)
 
 	kprintf("Simon Ainsworth's system version %s (%s #%d)\n", 
 		GROUP_VERSION, buildconfig, buildversion);
+	hello();
 	kprintf("\n");
 
 	/* Early initialization. */
