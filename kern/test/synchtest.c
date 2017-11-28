@@ -157,7 +157,7 @@ semtest(int nargs, char **args)
 
 	/* so we can run it again */
 	V(testsem);
-	V(testsem);
+	V(donesem);
 
 #ifdef UW
   cleanitems();

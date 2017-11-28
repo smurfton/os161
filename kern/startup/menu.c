@@ -155,7 +155,7 @@ common_prog(int nargs, char **args)
 #ifdef UW
 	/* wait until the process we have just launched - and any others that it 
 	   may fork - is finished before proceeding */
-	P(no_proc_sem);
+	P(no_proc_sem); //ASST1
 #endif // UW
 
 	return 0;
