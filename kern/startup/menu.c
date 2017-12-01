@@ -106,6 +106,9 @@ cmd_progthread(void *ptr, unsigned long nargs)
 	if (result) {
 		kprintf("Running program %s failed: %s\n", args[0],
 			strerror(result));
+#ifndef ASST1
+		V(no_proc_sem);
+#endif		
 		return;
 	}
 
@@ -151,11 +154,13 @@ common_prog(int nargs, char **args)
 		proc_destroy(proc);
 		return result;
 	}
-
+	
 #ifdef UW
 	/* wait until the process we have just launched - and any others that it 
 	   may fork - is finished before proceeding */
+#ifndef ASST1
 	P(no_proc_sem); //ASST1
+#endif
 #endif // UW
 
 	return 0;
@@ -459,6 +464,7 @@ static const char *testmenu[] = {
 	"[tt1] Thread test 1                 ",
 	"[tt2] Thread test 2                 ",
 	"[tt3] Thread test 3                 ",
+	"[tt4] Thread test fun               ", //SEA
 #if OPT_NET
 	"[net] Network test                  ",
 #endif
@@ -571,6 +577,7 @@ static struct {
 	{ "tt1",	threadtest },
 	{ "tt2",	threadtest2 },
 	{ "tt3",	threadtest3 },
+	{ "tt4", threadtest4 },
 	{ "sy1",	semtest },
 
 	/* synchronization assignment tests */

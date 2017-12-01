@@ -70,27 +70,27 @@ sem_create(const char *name, int initial_count)
 	}
 
 	spinlock_init(&sem->sem_lock);
-        sem->sem_count = initial_count;
+	sem->sem_count = initial_count;
 
-        return sem;
+	return sem;
 }
 
 void
 sem_destroy(struct semaphore *sem)
 {
-        KASSERT(sem != NULL);
+	KASSERT(sem != NULL);
 
 	/* wchan_cleanup will assert if anyone's waiting on it */
 	spinlock_cleanup(&sem->sem_lock);
 	wchan_destroy(sem->sem_wchan);
-        kfree(sem->sem_name);
-        kfree(sem);
+	kfree(sem->sem_name);
+	kfree(sem);
 }
 
 void 
 P(struct semaphore *sem)
 {
-        KASSERT(sem != NULL);
+	KASSERT(sem != NULL);
 
         /*
          * May not block in an interrupt handler.
@@ -98,10 +98,10 @@ P(struct semaphore *sem)
          * For robustness, always check, even if we can actually
          * complete the P without blocking.
          */
-        KASSERT(curthread->t_in_interrupt == false);
+	KASSERT(curthread->t_in_interrupt == false);
 
 	spinlock_acquire(&sem->sem_lock);
-        while (sem->sem_count == 0) {
+	while (sem->sem_count == 0) {
 		/*
 		 * Bridge to the wchan lock, so if someone else comes
 		 * along in V right this instant the wakeup can't go
@@ -120,24 +120,24 @@ P(struct semaphore *sem)
 		 */
 		wchan_lock(sem->sem_wchan);
 		spinlock_release(&sem->sem_lock);
-                wchan_sleep(sem->sem_wchan);
+		wchan_sleep(sem->sem_wchan);
 
 		spinlock_acquire(&sem->sem_lock);
-        }
-        KASSERT(sem->sem_count > 0);
-        sem->sem_count--;
+	}
+	KASSERT(sem->sem_count > 0);
+	sem->sem_count--;
 	spinlock_release(&sem->sem_lock);
 }
 
 void
 V(struct semaphore *sem)
 {
-        KASSERT(sem != NULL);
+	KASSERT(sem != NULL);
 
 	spinlock_acquire(&sem->sem_lock);
 
-        sem->sem_count++;
-        KASSERT(sem->sem_count > 0);
+	sem->sem_count++;
+	KASSERT(sem->sem_count > 0);
 	wchan_wakeone(sem->sem_wchan);
 
 	spinlock_release(&sem->sem_lock);
@@ -147,62 +147,78 @@ V(struct semaphore *sem)
 //
 // Lock.
 
+
+
 struct lock *
 lock_create(const char *name)
-{
-        struct lock *lock;
+{ 
 
-        lock = kmalloc(sizeof(struct lock));
-        if (lock == NULL) {
-                return NULL;
-        }
+	struct lock *lock;
+   DEBUG(DB_SYNCPROB,"\nCreating lock: %s\n", name);
 
-        lock->lk_name = kstrdup(name);
-        if (lock->lk_name == NULL) {
-                kfree(lock);
-                return NULL;
-        }
-        
-        // add stuff here as needed
-        
-        return lock;
+	lock = kmalloc(sizeof(struct lock));
+	if (lock == NULL) {
+		return NULL;
+	}
+	
+	lock->lk_name = kstrdup(name);
+	if (lock->lk_name == NULL) {
+		kfree(lock);
+		return NULL;
+	}
+	lock->lk_holder = NULL; //SEA
+	lock->lk_held = sem_create(lock->lk_name, 1);
+	if (lock->lk_held == NULL) {
+		kfree(lock);
+		return NULL;
+	}
+
+	return lock;
 }
+
 
 void
 lock_destroy(struct lock *lock)
 {
-        KASSERT(lock != NULL);
+	KASSERT(lock != NULL && lock->lk_name != NULL && lock->lk_held != NULL);
+	KASSERT(lock->lk_holder == NULL); //SEA 
+	//probably preferable to not crash on faulty user operations, change this later
+	// add stuff here as needed
+	
+	sem_destroy(lock->lk_held);//SEA
 
-        // add stuff here as needed
-        
-        kfree(lock->lk_name);
-        kfree(lock);
+	kfree(lock->lk_name);
+	kfree(lock);
+	
 }
 
 void
-lock_acquire(struct lock *lock)
-{
-        // Write this
+lock_acquire(struct lock *lock) 
+{//SEA
+	KASSERT(lock != NULL && lock->lk_name != NULL);
+	KASSERT(lock->lk_held != NULL);
+	P(lock->lk_held);
 
-        (void)lock;  // suppress warning until code gets written
+	KASSERT(lock->lk_holder == NULL);
+
+	lock->lk_holder = curthread;
+	return;
 }
 
 void
 lock_release(struct lock *lock)
 {
-        // Write this
-
-        (void)lock;  // suppress warning until code gets written
+	KASSERT(lock != NULL && lock->lk_name != NULL);
+	KASSERT(lock->lk_holder == curthread);
+	
+	lock->lk_holder = NULL;
+	V(lock->lk_held);
 }
 
 bool
 lock_do_i_hold(struct lock *lock)
 {
-        // Write this
-
-        (void)lock;  // suppress warning until code gets written
-
-        return true; // dummy until code gets written
+	return (lock != NULL) && (lock->lk_holder == curthread);
 }
 
 ////////////////////////////////////////////////////////////

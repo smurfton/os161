@@ -439,6 +439,9 @@ file		test/tt3.c
 file		test/synchtest.c
 file		test/malloctest.c
 file		test/fstest.c
+# SEA Mod
+file		test/threadfun.c
+# End SEA Mod
 optfile net	test/nettest.c
 # UW Mod
 file    test/uw-tests.c

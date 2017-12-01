@@ -486,12 +486,10 @@ thread_fork(const char *name,
 #ifdef UW
 	DEBUG(DB_THREADS,"Forking thread: %s\n",name);
 #endif // UW
-
 	newthread = thread_create(name);
 	if (newthread == NULL) {
 		return ENOMEM;
 	}
-
 	/* Allocate a stack */
 	newthread->t_stack = kmalloc(STACK_SIZE);
 	if (newthread->t_stack == NULL) {
@@ -499,7 +497,7 @@ thread_fork(const char *name,
 		return ENOMEM;
 	}
 	thread_checkstack_init(newthread);
-
+	
 	/*
 	 * Now we clone various fields from the parent thread.
 	 */
@@ -517,7 +515,6 @@ thread_fork(const char *name,
 		thread_destroy(newthread);
 		return result;
 	}
-
 	/*
 	 * Because new threads come out holding the cpu runqueue lock
 	 * (see notes at bottom of thread_switch), we need to account
@@ -527,10 +524,8 @@ thread_fork(const char *name,
 
 	/* Set up the switchframe so entrypoint() gets called */
 	switchframe_init(newthread, entrypoint, data1, data2);
-
 	/* Lock the current cpu's run queue and make the new thread runnable */
 	thread_make_runnable(newthread, false);
-
 	return 0;
 }
 

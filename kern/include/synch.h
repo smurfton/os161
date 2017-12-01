@@ -44,10 +44,10 @@
  * internally.
  */
 struct semaphore {
-        char *sem_name;
+	char *sem_name;
 	struct wchan *sem_wchan;
 	struct spinlock sem_lock;
-        volatile int sem_count;
+	volatile int sem_count;
 };
 
 struct semaphore *sem_create(const char *name, int initial_count);
@@ -74,7 +74,9 @@ void V(struct semaphore *);
  */
 struct lock {
         char *lk_name;
-        // add what you need here
+		  volatile struct thread *lk_holder;
+        struct semaphore *lk_held;
+		  // add what you need here
         // (don't forget to mark things volatile as needed)
 };
 
