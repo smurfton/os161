@@ -229,55 +229,114 @@ lock_do_i_hold(struct lock *lock)
 struct cv *
 cv_create(const char *name)
 {
-        struct cv *cv;
+	struct cv *cv;
 
-        cv = kmalloc(sizeof(struct cv));
-        if (cv == NULL) {
-                return NULL;
-        }
+	cv = kmalloc(sizeof(struct cv));
+	if (cv == NULL) {
+		return NULL;
+	}
 
-        cv->cv_name = kstrdup(name);
-        if (cv->cv_name==NULL) {
-                kfree(cv);
-                return NULL;
-        }
-        
-        // add stuff here as needed
-        
-        return cv;
+	cv->cv_name = kstrdup(name);
+	if (cv->cv_name==NULL) {
+		kfree(cv);
+		return NULL;
+	}
+	cv->cv_sem = sem_create(name, 0);
+	if (cv->cv_sem==NULL) {
+		kfree(cv);
+		return NULL;
+	}
+	cv->cv_asleep = 0;
+   
+	cv->cv_lk = lock_create(name);
+	if (cv->cv_lk == NULL) {
+		kfree(cv);
+		return NULL;
+	}
+
+	return cv;
 }
 
 void
 cv_destroy(struct cv *cv)
 {
-        KASSERT(cv != NULL);
-
-        // add stuff here as needed
-        
-        kfree(cv->cv_name);
-        kfree(cv);
+	KASSERT(cv != NULL);
+	KASSERT(cv->cv_sem != NULL);
+	lock_acquire(cv->cv_lk);
+	if(cv->cv_asleep != 0)
+	{
+		kprintf("\nError: cv_asleep nonzero on %s.\nCurrent value: %d\n", cv->cv_name, cv->cv_asleep);
+		KASSERT(false);
+	}
+	lock_release(cv->cv_lk);
+	// add stuff here as needed
+	lock_destroy(cv->cv_lk);
+	sem_destroy(cv->cv_sem);
+	kfree(cv->cv_name);
+	kfree(cv);
 }
 
 void
 cv_wait(struct cv *cv, struct lock *lock)
 {
-        // Write this
-        (void)cv;    // suppress warning until code gets written
-        (void)lock;  // suppress warning until code gets written
+	KASSERT(cv != NULL && lock != NULL);
+	KASSERT(cv->cv_name != NULL && cv->cv_sem != NULL);
+	KASSERT(cv->cv_lk != NULL);
+	KASSERT(lock_do_i_hold(lock));
+	
+	// THIS IS INCREDIBLY NOISY
+	// DEBUG(DB_SYNCPROB, "\nWait on cv: %s with lock: %s\n", cv->cv_name, cv->cv_sem->sem_name);
+	lock_acquire(cv->cv_lk);
+	++(cv->cv_asleep);
+	lock_release(cv->cv_lk);
+
+	lock_release(lock);
+
+	P(cv->cv_sem);
+
+	lock_acquire(cv->cv_lk);
+	--(cv->cv_asleep);
+	lock_release(cv->cv_lk);
+
+	lock_acquire(lock);
+
+	return;
 }
 
 void
 cv_signal(struct cv *cv, struct lock *lock)
 {
-        // Write this
-	(void)cv;    // suppress warning until code gets written
-	(void)lock;  // suppress warning until code gets written
+	KASSERT(cv != NULL && lock != NULL);
+	KASSERT(cv->cv_name != NULL && cv->cv_sem != NULL);
+	KASSERT(lock_do_i_hold(lock));
+
+	DEBUG(DB_SYNCPROB, "\nSignal on CV: %s\n", cv->cv_name);
+	
+	if(cv->cv_asleep != 0)
+		V(cv->cv_sem);
+
+	return;
 }
 
 void
 cv_broadcast(struct cv *cv, struct lock *lock)
 {
-	// Write this
-	(void)cv;    // suppress warning until code gets written
-	(void)lock;  // suppress warning until code gets written
+	int sleep, i;
+
+	KASSERT(cv != NULL && lock != NULL);
+	KASSERT(cv->cv_name != NULL && cv->cv_sem != NULL);
+	KASSERT(cv->cv_lk != NULL);
+	KASSERT(lock_do_i_hold(lock));
+
+	//SO NOISY
+	//DEBUG(DB_SYNCPROB, "\nBroadcast on CV: %s\n", cv->cv_name);
+	lock_acquire(cv->cv_lk);
+	sleep = cv->cv_asleep; //number expected to change.
+	lock_release(cv->cv_lk);
+	for(i = 0; i < sleep; i++)
+	{
+		V(cv->cv_sem);
+	}
+
+	return;
 }

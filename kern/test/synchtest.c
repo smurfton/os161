@@ -65,9 +65,13 @@ cleanitems(void)
 {
 	kprintf("cleanitems: Destroying sems, locks, and cvs\n");
 	sem_destroy(testsem);
+	testsem = NULL;
 	lock_destroy(testlock);
+	testlock = NULL;
 	cv_destroy(testcv);
+	testcv = NULL;
 	sem_destroy(donesem);
+	donesem = NULL;
 	}
 #endif
 

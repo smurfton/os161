@@ -469,10 +469,10 @@ static const char *testmenu[] = {
 	"[net] Network test                  ",
 #endif
 	"[sy1] Semaphore test                ",
-	"[sy2] Lock test             (1)     ",
-	"[sy3] CV test               (1)     ",
+	"[sy2] Lock test                     ",
+	"[sy3] CV test                       ",
 #ifdef UW
-	"[uw1] UW lock test          (1)     ",
+	"[uw1] UW lock test                  ",
 	"[uw2] UW vmstats test       (3)     ",
 #endif // UW
 	"[fs1] Filesystem test               ",
@@ -491,8 +491,6 @@ cmd_testmenu(int n, char **a)
 	(void)a;
 
 	showmenu("OS/161 tests menu", testmenu);
-	kprintf("    (1) These tests will fail until you finish the "
-		"synch assignment.\n");
 	kprintf("    (4) These tests may fail until you finish the "
 		"file system assignment.\n");
 	kprintf("\n");

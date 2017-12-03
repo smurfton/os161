@@ -1,5 +1,6 @@
 */*/*/.depend
 */*/*/build
+*.o
 build
 cscope.out
 tags
