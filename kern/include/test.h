@@ -61,6 +61,7 @@ int threadtest(int, char **);
 int threadtest2(int, char **);
 int threadtest3(int, char **);
 int threadtest4(int, char **); //SEA //threadfun, lab5
+int threadtest5(int, char **); //SEA
 int semtest(int, char **);
 int locktest(int, char **);
 int cvtest(int, char **);
@@ -86,7 +87,7 @@ int mallocstress(int, char **);
 int nettest(int, char **);
 
 /* Routine for running a user-level program. */
-int runprogram(char *progname);
+int runprogram(char *progname, void* ptr, unsigned long nargs);
 
 /* Kernel menu system. */
 void menu(char *argstr);

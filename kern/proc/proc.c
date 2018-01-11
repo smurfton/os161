@@ -66,9 +66,7 @@ static unsigned int proc_count;
 /* it would be better to use a lock here, but we use a semaphore because locks are not implemented in the base kernel */ 
 static struct semaphore *proc_count_mutex;
 /* used to signal the kernel menu thread when there are no processes */
-#ifndef ASST1
 struct semaphore *no_proc_sem;   
-#endif
 #endif  // UW
 
 
@@ -180,11 +178,9 @@ proc_destroy(struct proc *proc)
 	KASSERT(proc_count > 0);
 	proc_count--;
 	/* signal the kernel menu thread if the process count has reached zero */
-#ifndef ASST1
 	if (proc_count == 0) {
 	 	V(no_proc_sem);
 	}
-#endif
 	V(proc_count_mutex);
 #endif // UW
 	
@@ -207,12 +203,10 @@ proc_bootstrap(void)
   if (proc_count_mutex == NULL) {
     panic("could not create proc_count_mutex semaphore\n");
   }
-#ifndef ASST1
   no_proc_sem = sem_create("no_proc_sem",0);
   if (no_proc_sem == NULL) {
     panic("could not create no_proc_sem semaphore\n");
   }
-#endif //ASST1
 #endif // UW 
 }
 

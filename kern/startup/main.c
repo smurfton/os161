@@ -102,7 +102,9 @@ boot(void)
 
 	kprintf("Simon Ainsworth's system version %s (%s #%d)\n", 
 		GROUP_VERSION, buildconfig, buildversion);
+#ifdef ASST0
 	hello();
+#endif //ASST0
 	kprintf("\n");
 
 	/* Early initialization. */

@@ -76,9 +76,7 @@ extern struct proc *kproc;
 
 /* Semaphore used to signal when there are no more processes */
 #ifdef UW
-#ifndef ASST1
 extern struct semaphore *no_proc_sem;
-#endif
 #endif // UW
 
 /* Call once during system startup to allocate data structures. */

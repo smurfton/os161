@@ -312,8 +312,10 @@ cv_signal(struct cv *cv, struct lock *lock)
 
 	DEBUG(DB_SYNCPROB, "\nSignal on CV: %s\n", cv->cv_name);
 	
+	lock_acquire(cv->cv_lk);	
 	if(cv->cv_asleep != 0)
 		V(cv->cv_sem);
+	lock_release(cv->cv_lk);
 
 	return;
 }
@@ -321,8 +323,7 @@ cv_signal(struct cv *cv, struct lock *lock)
 void
 cv_broadcast(struct cv *cv, struct lock *lock)
 {
-	int sleep, i;
-
+	int i;
 	KASSERT(cv != NULL && lock != NULL);
 	KASSERT(cv->cv_name != NULL && cv->cv_sem != NULL);
 	KASSERT(cv->cv_lk != NULL);
@@ -331,12 +332,11 @@ cv_broadcast(struct cv *cv, struct lock *lock)
 	//SO NOISY
 	//DEBUG(DB_SYNCPROB, "\nBroadcast on CV: %s\n", cv->cv_name);
 	lock_acquire(cv->cv_lk);
-	sleep = cv->cv_asleep; //number expected to change.
-	lock_release(cv->cv_lk);
-	for(i = 0; i < sleep; i++)
+	for(i = 0; i < cv->cv_asleep; i++)
 	{
 		V(cv->cv_sem);
 	}
+	lock_release(cv->cv_lk);
 
 	return;
 }
