@@ -122,7 +122,7 @@ thread_create(const char *name)
 	struct thread *thread;
 
 	DEBUGASSERT(name != NULL);
-
+	DEBUG(DB_THREADS, "\nThread Create: %s\n", name);
 	thread = kmalloc(sizeof(*thread));
 	if (thread == NULL) {
 		return NULL;

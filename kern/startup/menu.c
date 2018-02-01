@@ -108,6 +108,7 @@ cmd_progthread(void *ptr, unsigned long nargs)
 		kprintf("Running program %s failed: %s\n", args[0],
 			strerror(result));
 		V(no_proc_sem);
+			
 		return;
 	}
 
@@ -152,14 +153,12 @@ common_prog(int nargs, char **args)
 		kprintf("thread_fork failed: %s\n", strerror(result));
 		proc_destroy(proc);
 		return result;
-	}
-	
+	}	
 #ifdef UW
 	/* wait until the process we have just launched - and any others that it 
 	   may fork - is finished before proceeding */
 	P(no_proc_sem); //ASST1
 #endif // UW
-
 	return 0;
 }
 
@@ -437,6 +436,7 @@ static const char *opsmenu[] = {
 	"[cd]      Change directory          ",
 	"[pwd]     Print current directory   ",
 	"[sync]    Sync filesystems          ",
+	"[dbflag]  Print or set dbflags      ",
 	"[panic]   Intentional panic         ",
 	"[q]       Quit and shut down        ",
 	NULL

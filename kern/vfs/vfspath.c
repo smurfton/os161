@@ -110,7 +110,20 @@ vfs_open(char *path, int openflags, mode_t mode, struct vnode **ret)
 	}
 
 	*ret = vn;
-
+	
+	DEBUG(DB_VFS, "\nOpened file:\n"
+			"path      : %s\n"
+			"ref count : %d\n"
+			"open count: %d\n"
+			"fs ptr    : %p\n"
+			"data ptr  : %p\n"
+			"ops ptr   : %p\n", 
+			path,
+			vn->vn_refcount, 
+			vn->vn_opencount, 
+			vn->vn_fs,
+			vn->vn_data,
+			vn->vn_ops);
 	return 0;
 }
 

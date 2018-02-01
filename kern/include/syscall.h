@@ -54,7 +54,7 @@ void enter_new_process(int argc, userptr_t argv, vaddr_t stackptr,
 /*
  * Prototypes for IN-KERNEL entry points for system call implementations.
  */
-
+int sys_fork(int *retval); //SEA
 int sys_reboot(int code);
 int sys___time(userptr_t user_seconds, userptr_t user_nanoseconds);
 

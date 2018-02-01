@@ -58,13 +58,15 @@ runprogram(char *progname, void *ptr, unsigned long argc)
 	struct vnode *v;
 	vaddr_t entrypoint, stackptr;
 	int result;
+//	char **localptr; //SEA
+	(void) ptr;
+	(void) argc;
 
 	/* Open the file. */
 	result = vfs_open(progname, O_RDONLY, 0, &v);
 	if (result) {
 		return result;
 	}
-
 	/* We should be a new process. */
 	KASSERT(curproc_getas() == NULL);
 
@@ -74,10 +76,21 @@ runprogram(char *progname, void *ptr, unsigned long argc)
 		vfs_close(v);
 		return ENOMEM;
 	}
-
+	
 	/* Switch to it and activate it. */
 	curproc_setas(as);
 	as_activate();
+
+	/* Create list of arguments in new address space. */
+	/*	
+	localptr = (char **) kmalloc(argc * sizeof(char*));
+	for(unsigned long i = 0; i < argc; i++)
+	{
+		localptr[i] = (char *) kmalloc(sizeof ((char **) ptr)[i]);
+		KASSERT(localptr[i] != NULL);
+		strcpy(((char **)ptr)[i], localptr[i]);
+	} 
+	*/
 
 	/* Load the executable. */
 	result = load_elf(v, &entrypoint);
@@ -98,7 +111,7 @@ runprogram(char *progname, void *ptr, unsigned long argc)
 	}
 
 	/* Warp to user mode. */
-	enter_new_process(argc /*argc*/, ptr /*userspace addr of argv*/,
+	enter_new_process(0 /*argc*/, (void *) NULL /*userspace addr of argv*/,
 			  stackptr, entrypoint);
 	
 	/* enter_new_process does not return. */

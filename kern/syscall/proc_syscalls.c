@@ -10,6 +10,13 @@
 #include <addrspace.h>
 #include <copyinout.h>
 
+/** SEA **/ //SEA
+int 
+sys_fork(int *retval) {
+	*retval = 1;
+	return 0;
+}
+
   /* this implementation of sys__exit does not do anything with the exit code */
   /* this needs to be fixed to get exit() and waitpid() working properly */
 
@@ -21,7 +28,7 @@ void sys__exit(int exitcode) {
      an unused variable */
   (void)exitcode;
 
-  DEBUG(DB_SYSCALL,"Syscall: _exit(%d)\n",exitcode);
+  DEBUG(DB_SYSCALL,"\nSyscall: _exit(%d)\n",exitcode);
 
   KASSERT(curproc->p_addrspace != NULL);
   as_deactivate();
@@ -42,7 +49,6 @@ void sys__exit(int exitcode) {
   /* if this is the last user process in the system, proc_destroy()
      will wake up the kernel menu thread */
   proc_destroy(p);
-  
   thread_exit();
   /* thread_exit() does not return, so we should never get here */
   panic("return from thread_exit in sys_exit\n");
