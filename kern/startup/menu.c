@@ -463,6 +463,9 @@ static const char *testmenu[] = {
 	"[tt3] Thread test 3                 ",
 	"[tt4] Thread test fun               ", //SEA lab5
 	"[tt5] Thread test fun 2             ", //SEA lab5
+	"[tt6] Run many thread test          ", //SEA Project1
+	"[utc] Unsafe Thread Counter         ", //SEA Project1
+	"[ltc] Lock Thread Counter           ", //SEA Project1
 #if OPT_NET
 	"[net] Network test                  ",
 #endif
@@ -575,6 +578,9 @@ static struct {
 	{ "tt3",	threadtest3 },
 	{ "tt4", threadtest4 }, //SEA lab5
 	{ "tt5", threadtest5 }, //SEA lab5
+	{ "tt6", runmanythreadtest}, //SEA Project1
+	{ "utc", unsafethreadcounter}, //SEA Project1
+	{ "ltc", lockthreadcounter}, //SEA Project1
 	{ "sy1",	semtest },
 
 	/* synchronization assignment tests */

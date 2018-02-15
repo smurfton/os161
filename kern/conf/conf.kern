@@ -441,6 +441,7 @@ file		test/malloctest.c
 file		test/fstest.c
 # SEA Mod
 file		test/threadfun.c
+file     test/threadcounttest.c
 # End SEA Mod
 optfile net	test/nettest.c
 # UW Mod
