@@ -122,7 +122,6 @@ boot(void)
 	/* Now do pseudo-devices. */
 	pseudoconfig();
 	kprintf("\n");
-
 	/* Late phase of initialization. */
 	vm_bootstrap();
 	kprintf_bootstrap();
@@ -130,7 +129,7 @@ boot(void)
 
 	/* Default bootfs - but ignore failure, in case emu0 doesn't exist */
 	vfs_setbootfs("emu0");
-
+	
 
 	/*
 	 * Make sure various things aren't screwed up.

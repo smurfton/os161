@@ -182,7 +182,7 @@ lock_destroy(struct lock *lock)
 {
 	KASSERT(lock != NULL);
 	KASSERT(lock->lk_holder == NULL);
-	
+	DEBUG(DB_SYNCPROB, "\nLOCK_DESTROY\n");	
 	spinlock_cleanup(&lock->lk_lock);//SEA
 	wchan_destroy(lock->lk_wchan);
 	kfree(lock->lk_name);
@@ -194,42 +194,51 @@ lock_destroy(struct lock *lock)
 void
 lock_acquire(struct lock *lock) 
 {//SEA
-	(void) lock;
-	return;
-	/*
-	KASSERT(lock != NULL && lock->lk_name != NULL);
-	KASSERT(lock->lk_held != NULL);
-	P(lock->lk_held);
+	KASSERT(lock != NULL);
+	//NEVER KPRINTF IN THIS FUNCTION.
+	//DEBUG(DB_SYNCPROB, "\nLOCK_ACQUIRE %s\n", lock->lk_name);
+	KASSERT(curthread->t_in_interrupt == false);
+	
+	spinlock_acquire(&lock->lk_lock);
+	wchan_lock(lock->lk_wchan);	
+	while (lock->lk_holder != NULL) {
+		spinlock_release(&lock->lk_lock);
+		wchan_sleep(lock->lk_wchan);
 
+		spinlock_acquire(&lock->lk_lock);
+		wchan_lock(lock->lk_wchan);
+	}
+	
 	KASSERT(lock->lk_holder == NULL);
-
 	lock->lk_holder = curthread;
+	spinlock_release(&lock->lk_lock);
+	wchan_unlock(lock->lk_wchan);
 	return;
-	*/
+
 }
 
 void
 lock_release(struct lock *lock)
 {
-	(void) lock;
-	return;
-	/*
-	KASSERT(lock != NULL && lock->lk_name != NULL);
+
+	KASSERT(lock != NULL);
 	KASSERT(lock->lk_holder == curthread);
+	KASSERT(curthread->t_in_interrupt == false);
+	//NEVER KPRINTF IN THIS FUNCTION.
+	//DEBUG(DB_SYNCPROB, "\nLOCK_RELEASE %s\n", lock->lk_name);
+	spinlock_acquire(&lock->lk_lock);
+	wchan_lock(lock->lk_wchan);
 	
 	lock->lk_holder = NULL;
-	V(lock->lk_held);
-	*/
+	
+	spinlock_release(&lock->lk_lock);
+	wchan_unlock(lock->lk_wchan);
 }
 
 bool
 lock_do_i_hold(struct lock *lock)
 {
-	(void) lock;
-	return 1;
-	/*
 	return (lock != NULL) && (lock->lk_holder == curthread);
-	*/
 }
 
 ////////////////////////////////////////////////////////////
@@ -252,18 +261,14 @@ cv_create(const char *name)
 		kfree(cv);
 		return NULL;
 	}
-	cv->cv_sem = sem_create(name, 0);
-	if (cv->cv_sem==NULL) {
+	cv->cv_wchan = wchan_create(name);
+	if (cv->cv_wchan==NULL) {
+		kfree(cv->cv_name)
 		kfree(cv);
 		return NULL;
 	}
-	cv->cv_asleep = 0;
    
-	cv->cv_lk = lock_create(name);
-	if (cv->cv_lk == NULL) {
-		kfree(cv);
-		return NULL;
-	}
+	spinlock_init(&cv->cv_lock);
 
 	return cv;
 }
@@ -272,17 +277,8 @@ void
 cv_destroy(struct cv *cv)
 {
 	KASSERT(cv != NULL);
-	KASSERT(cv->cv_sem != NULL);
-	lock_acquire(cv->cv_lk);
-	if(cv->cv_asleep != 0)
-	{
-		kprintf("\nError: cv_asleep nonzero on %s.\nCurrent value: %d\n", cv->cv_name, cv->cv_asleep);
-		KASSERT(false);
-	}
-	lock_release(cv->cv_lk);
-	// add stuff here as needed
-	lock_destroy(cv->cv_lk);
-	sem_destroy(cv->cv_sem);
+	spinlock_cleanup(&cv->cv_lock);
+	wchan_destroy(cv->cv_wchan);
 	kfree(cv->cv_name);
 	kfree(cv);
 }
@@ -291,26 +287,26 @@ void
 cv_wait(struct cv *cv, struct lock *lock)
 {
 	KASSERT(cv != NULL && lock != NULL);
-	KASSERT(cv->cv_name != NULL && cv->cv_sem != NULL);
-	KASSERT(cv->cv_lk != NULL);
+	DEBUG(DB_SYNCPROB, "\nCV_Wait: %s : %s\n", cv->cv_name, lock->lk_name);
 	KASSERT(lock_do_i_hold(lock));
-	
-	// THIS IS INCREDIBLY NOISY
-	// DEBUG(DB_SYNCPROB, "\nWait on cv: %s with lock: %s\n", cv->cv_name, cv->cv_sem->sem_name);
-	lock_acquire(cv->cv_lk);
-	++(cv->cv_asleep);
-	lock_release(cv->cv_lk);
-
+	wchan_lock(cv->cv_wchan);
+	// lock_release panics if lock is not owned.
 	lock_release(lock);
+	wchan_sleep(cv->cv_wchan);
+	
 
-	P(cv->cv_sem);
-
-	lock_acquire(cv->cv_lk);
-	--(cv->cv_asleep);
-	lock_release(cv->cv_lk);
+	spinlock_acquire(&cv->cv_lock);
+	wchan_lock(cv->cv_wchan);
+	/*
+	 * If the thread is incapable of acquiring the lock,
+	 * it must return to sleeping on the wait channel.
+	 * (according to Wikipedia)
+	 */
 
 	lock_acquire(lock);
-
+	spinlock_release(&cv->cv_lock);
+	wchan_unlock(cv->cv_wchan);
+	
 	return;
 }
 
@@ -318,15 +314,13 @@ void
 cv_signal(struct cv *cv, struct lock *lock)
 {
 	KASSERT(cv != NULL && lock != NULL);
-	KASSERT(cv->cv_name != NULL && cv->cv_sem != NULL);
+	DEBUG(DB_SYNCPROB, "\nCV_Signal: %s : %s\n", cv->cv_name, lock->lk_name);
 	KASSERT(lock_do_i_hold(lock));
 
-	DEBUG(DB_SYNCPROB, "\nSignal on CV: %s\n", cv->cv_name);
-	
-	lock_acquire(cv->cv_lk);	
-	if(cv->cv_asleep != 0)
-		V(cv->cv_sem);
-	lock_release(cv->cv_lk);
+	DEBUG(DB_SYNCPROB, "\nSignal on CV: %s\n", cv->cv_name);	
+	spinlock_acquire(&cv->cv_lock);
+	wchan_wakeone(cv->cv_wchan);
+	spinlock_release(&cv->cv_lock);
 
 	return;
 }
@@ -334,20 +328,14 @@ cv_signal(struct cv *cv, struct lock *lock)
 void
 cv_broadcast(struct cv *cv, struct lock *lock)
 {
-	int i;
 	KASSERT(cv != NULL && lock != NULL);
-	KASSERT(cv->cv_name != NULL && cv->cv_sem != NULL);
-	KASSERT(cv->cv_lk != NULL);
 	KASSERT(lock_do_i_hold(lock));
-
+	DEBUG(DB_SYNCPROB, "\nCV_Broadcast: %s : %s\n", cv->cv_name, lock->lk_name);
 	//SO NOISY
 	//DEBUG(DB_SYNCPROB, "\nBroadcast on CV: %s\n", cv->cv_name);
-	lock_acquire(cv->cv_lk);
-	for(i = 0; i < cv->cv_asleep; i++)
-	{
-		V(cv->cv_sem);
-	}
-	lock_release(cv->cv_lk);
 
+	spinlock_acquire(&cv->cv_lock);
+	wchan_wakeall(cv->cv_wchan);
+	spinlock_release(&cv->cv_lock);
 	return;
 }
