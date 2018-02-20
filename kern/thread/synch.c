@@ -154,7 +154,6 @@ lock_create(const char *name)
 { 
 
 	struct lock *lock;
-   DEBUG(DB_SYNCPROB,"\nCreating lock: %s\n", name);
 
 	lock = kmalloc(sizeof(struct lock));
 	if (lock == NULL) {
@@ -166,13 +165,14 @@ lock_create(const char *name)
 		kfree(lock);
 		return NULL;
 	}
-	lock->lk_holder = NULL; //SEA
-	lock->lk_held = sem_create(lock->lk_name, 1);
-	if (lock->lk_held == NULL) {
+	lock->lk_wchan = wchan_create(lock->lk_name);
+	if (lock->lk_wchan == NULL) {
+		kfree(lock->lk_name);
 		kfree(lock);
 		return NULL;
 	}
-
+	lock->lk_holder = NULL;
+	spinlock_init(&lock->lk_lock);
 	return lock;
 }
 
@@ -180,21 +180,23 @@ lock_create(const char *name)
 void
 lock_destroy(struct lock *lock)
 {
-	KASSERT(lock != NULL && lock->lk_name != NULL && lock->lk_held != NULL);
-	KASSERT(lock->lk_holder == NULL); //SEA 
-	//probably preferable to not crash on faulty user operations, change this later
-	// add stuff here as needed
+	KASSERT(lock != NULL);
+	KASSERT(lock->lk_holder == NULL);
 	
-	sem_destroy(lock->lk_held);//SEA
-
+	spinlock_cleanup(&lock->lk_lock);//SEA
+	wchan_destroy(lock->lk_wchan);
 	kfree(lock->lk_name);
 	kfree(lock);
+	
 	
 }
 
 void
 lock_acquire(struct lock *lock) 
 {//SEA
+	(void) lock;
+	return;
+	/*
 	KASSERT(lock != NULL && lock->lk_name != NULL);
 	KASSERT(lock->lk_held != NULL);
 	P(lock->lk_held);
@@ -203,22 +205,31 @@ lock_acquire(struct lock *lock)
 
 	lock->lk_holder = curthread;
 	return;
+	*/
 }
 
 void
 lock_release(struct lock *lock)
 {
+	(void) lock;
+	return;
+	/*
 	KASSERT(lock != NULL && lock->lk_name != NULL);
 	KASSERT(lock->lk_holder == curthread);
 	
 	lock->lk_holder = NULL;
 	V(lock->lk_held);
+	*/
 }
 
 bool
 lock_do_i_hold(struct lock *lock)
 {
+	(void) lock;
+	return 1;
+	/*
 	return (lock != NULL) && (lock->lk_holder == curthread);
+	*/
 }
 
 ////////////////////////////////////////////////////////////
