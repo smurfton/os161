@@ -114,9 +114,8 @@ void lock_destroy(struct lock *);
 
 struct cv {
         char *cv_name;
-		  struct semaphore *cv_sem;
-		  volatile int cv_asleep;
-		  struct lock *cv_lk;
+		  struct wchan *cv_wchan;
+//		  struct spinlock cv_lk;
         // add what you need here
         // (don't forget to mark things volatile as needed)
 };
