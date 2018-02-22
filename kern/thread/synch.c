@@ -199,19 +199,17 @@ lock_acquire(struct lock *lock)
 	KASSERT(curthread->t_in_interrupt == false);
 	
 	spinlock_acquire(&lock->lk_lock);
-	wchan_lock(lock->lk_wchan);	
 	while (lock->lk_holder != NULL) {
+		wchan_lock(lock->lk_wchan);
 		spinlock_release(&lock->lk_lock);
 		wchan_sleep(lock->lk_wchan);
 
 		spinlock_acquire(&lock->lk_lock);
-		wchan_lock(lock->lk_wchan);
 	}
 	
 	KASSERT(lock->lk_holder == NULL);
 	lock->lk_holder = curthread;
 	spinlock_release(&lock->lk_lock);
-	wchan_unlock(lock->lk_wchan);
 	return;
 
 }
@@ -226,12 +224,10 @@ lock_release(struct lock *lock)
 	//NEVER KPRINTF IN THIS FUNCTION.
 	//DEBUG(DB_SYNCPROB, "\nLOCK_RELEASE %s\n", lock->lk_name);
 	spinlock_acquire(&lock->lk_lock);
-	wchan_lock(lock->lk_wchan);
-	
+		
 	lock->lk_holder = NULL;
-	
+	wchan_wakeone(lock->lk_wchan);
 	spinlock_release(&lock->lk_lock);
-	wchan_unlock(lock->lk_wchan);
 }
 
 bool
@@ -288,21 +284,15 @@ void
 cv_wait(struct cv *cv, struct lock *lock)
 {
 	KASSERT(cv != NULL && lock != NULL);
-	DEBUG(DB_SYNCPROB, "\nCV_Wait: %s : %s\n", cv->cv_name, lock->lk_name);
 	KASSERT(lock_do_i_hold(lock));
 	wchan_lock(cv->cv_wchan);
 	// lock_release panics if lock is not owned.
 	lock_release(lock);
 	wchan_sleep(cv->cv_wchan);
 	
-
+/* do i even need spinlocks in my cv? */
 //	spinlock_acquire(&cv->cv_lock);
 	wchan_lock(cv->cv_wchan); 
-	/*
-	 * If the thread is incapable of acquiring the lock,
-	 * it must return to sleeping on the wait channel.
-	 * (according to Wikipedia)
-	 */
 
 	lock_acquire(lock);
 //	spinlock_release(&cv->cv_lock);
@@ -315,10 +305,8 @@ void
 cv_signal(struct cv *cv, struct lock *lock)
 {
 	KASSERT(cv != NULL && lock != NULL);
-	DEBUG(DB_SYNCPROB, "\nCV_Signal: %s : %s\n", cv->cv_name, lock->lk_name);
 	KASSERT(lock_do_i_hold(lock));
 
-	DEBUG(DB_SYNCPROB, "\nSignal on CV: %s\n", cv->cv_name);	
 //	spinlock_acquire(&cv->cv_lock);
 	wchan_wakeone(cv->cv_wchan);
 //	spinlock_release(&cv->cv_lock);
@@ -331,12 +319,9 @@ cv_broadcast(struct cv *cv, struct lock *lock)
 {
 	KASSERT(cv != NULL && lock != NULL);
 	KASSERT(lock_do_i_hold(lock));
-	DEBUG(DB_SYNCPROB, "\nCV_Broadcast: %s : %s\n", cv->cv_name, lock->lk_name);
 	//SO NOISY
 	//DEBUG(DB_SYNCPROB, "\nBroadcast on CV: %s\n", cv->cv_name);
 
-//	spinlock_acquire(&cv->cv_lock);
 	wchan_wakeall(cv->cv_wchan);
-//	spinlock_release(&cv->cv_lock);
 	return;
 }
