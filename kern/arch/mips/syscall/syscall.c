@@ -102,7 +102,7 @@ syscall(struct trapframe *tf)
 	switch (callno) {
 		/** SEA **///SEA
 		case SYS_fork:
-			err = sys_fork((int *)(&retval)); 
+			err = sys_fork(tf, (int *)(&retval)); 
 			break;
 		/** ENDSEA **/
 		case SYS_reboot:

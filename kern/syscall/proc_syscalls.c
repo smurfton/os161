@@ -12,7 +12,8 @@
 
 /** SEA **/ //SEA
 int 
-sys_fork(int *retval) {
+sys_fork(struct trapframe *tf, int *retval) {
+	(void) tf;
 	*retval = 1;
 	return 0;
 }

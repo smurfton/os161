@@ -65,6 +65,7 @@ int threadtest5(int, char **); //SEA
 int runmanythreadtest(int, char **); //SEA
 int unsafethreadcounter(int, char **); //SEA
 int lockthreadcounter(int, char **); //SEA
+int spinlockthreadcounter(int, char **); //SEA //Project 1
 int semtest(int, char **);
 int locktest(int, char **);
 int cvtest(int, char **);

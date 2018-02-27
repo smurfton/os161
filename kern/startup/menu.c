@@ -35,6 +35,7 @@
 #include <lib.h>
 #include <uio.h>
 #include <clock.h>
+#include <current.h>
 #include <thread.h>
 #include <proc.h>
 #include <synch.h>
@@ -90,6 +91,7 @@ cmd_progthread(void *ptr, unsigned long nargs)
 	char **args = ptr;
 	char progname[128];
 	int result;
+	struct proc *p = curproc;
 
 	KASSERT(nargs >= 1);
 
@@ -107,8 +109,9 @@ cmd_progthread(void *ptr, unsigned long nargs)
 	if (result) {
 		kprintf("Running program %s failed: %s\n", args[0],
 			strerror(result));
-		V(no_proc_sem);
-			
+		proc_remthread(curthread);
+		proc_destroy(p);
+		thread_exit();
 		return;
 	}
 
@@ -466,6 +469,7 @@ static const char *testmenu[] = {
 	"[tt6] Run many thread test          ", //SEA Project1
 	"[utc] Unsafe Thread Counter         ", //SEA Project1
 	"[ltc] Lock Thread Counter           ", //SEA Project1
+	"[stc] Spinlock Thread Counter       ", //SEA Project1
 #if OPT_NET
 	"[net] Network test                  ",
 #endif
@@ -581,6 +585,7 @@ static struct {
 	{ "tt6", runmanythreadtest}, //SEA Project1
 	{ "utc", unsafethreadcounter}, //SEA Project1
 	{ "ltc", lockthreadcounter}, //SEA Project1
+	{ "stc", spinlockthreadcounter}, //SEA Project1
 	{ "sy1",	semtest },
 
 	/* synchronization assignment tests */

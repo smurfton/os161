@@ -512,6 +512,9 @@ thread_fork(const char *name,
 	result = proc_addthread(proc, newthread);
 	if (result) {
 		/* thread_destroy will clean up the stack */
+		DEBUG(DB_THREADS, "\nProc addthread error\n");
+//		proc_remthread(curthread); // it failed so...
+		proc_destroy(proc);
 		thread_destroy(newthread);
 		return result;
 	}

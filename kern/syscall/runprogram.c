@@ -44,7 +44,6 @@
 #include <vfs.h>
 #include <syscall.h>
 #include <test.h>
-
 /*
  * Load program "progname" and start running it in usermode.
  * Does not return except on error.
