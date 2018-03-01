@@ -9,12 +9,49 @@
 #include <thread.h>
 #include <addrspace.h>
 #include <copyinout.h>
+#include <mips/trapframe.h>
+
 
 /** SEA **/ //SEA
 int 
 sys_fork(struct trapframe *tf, int *retval) {
-	(void) tf;
-	*retval = 1;
+	struct proc * proc;
+	struct trapframe *temp_tf;
+	int result;
+
+//	DEBUG(DB_SYSCALL, "Syscall: sys_fork()\n");	
+
+	
+	temp_tf = (struct trapframe *) kmalloc(sizeof (struct trapframe));
+	if(temp_tf == NULL) {
+		return ENOMEM;
+	}
+	temp_tf = memcpy(temp_tf, tf, sizeof(struct trapframe));
+
+	// create proc
+	proc = proc_create_runprogram(curproc->p_name);	
+	if (proc == NULL) {
+		kfree(temp_tf);
+		return ENOMEM;
+	}
+	result = as_copy(curproc->p_addrspace, &(proc->p_addrspace));
+	if (result) {
+		proc_destroy(proc);
+		kfree(temp_tf);
+		return result;
+	}
+	//XXX PID	
+	result = thread_fork(curproc->p_name,
+			proc,
+			enter_forked_process,
+			(void *)temp_tf,//need to do something to this
+			(unsigned long) 1);
+	
+	if(result) {
+		proc_destroy(proc);
+		return result;
+	}
+	*retval = 2;
 	return 0;
 }
 

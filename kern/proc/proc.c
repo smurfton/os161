@@ -209,6 +209,39 @@ proc_bootstrap(void)
   }
 #endif // UW 
 }
+/* //UNNEEDED (YET)
+struct proc *
+proc_create_fork(const char *name) {
+	struct proc *proc;
+	char * console_path;
+	proc = proc_create(name);
+	if (proc == NULL) {
+		return NULL;
+	}
+	// open anything?
+#ifdef UW
+	console_path = kstrdup("con:");
+   if (console_path == NULL) {
+     panic("unable to copy console path name during process creation\n");
+   }
+   if (vfs_open(console_path,O_WRONLY,0,&(proc->console))) {
+     panic("unable to open the console during process creation\n");
+   }
+	kfree(console_path);
+#endif //UW
+	// copy as //fork does this.
+
+	// copy cwd
+	// if cwd != null, VOP_INCREF it 
+
+	// +1 proc
+   P(proc_count_mutex);
+   proc_count++;
+   V(proc_count_mutex);
+
+	return proc;
+}
+*/
 
 /*
  * Create a fresh proc for use by runprogram.

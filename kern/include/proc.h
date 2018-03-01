@@ -69,6 +69,12 @@ struct proc {
 #endif
 
 	/* add more material here as needed */
+// pid_t p_pid;
+// pid_t pp_pid;
+// struct proc *p_pproc;
+// exitcode
+// waitpid
+// 
 };
 
 /* This is the process structure for the kernel and for kernel-only threads. */
@@ -81,6 +87,9 @@ extern struct semaphore *no_proc_sem;
 
 /* Call once during system startup to allocate data structures. */
 void proc_bootstrap(void);
+
+/* Create a fresh process for use by fork(). */
+//struct proc *proc_create_fork(const char *name);
 
 /* Create a fresh process for use by runprogram(). */
 struct proc *proc_create_runprogram(const char *name);
