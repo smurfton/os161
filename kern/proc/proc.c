@@ -50,12 +50,16 @@
 #include <vfs.h>
 #include <synch.h>
 #include <kern/fcntl.h>  
-
+#include <limits.h> 
 /*
  * The process for the kernel; this holds all the kernel-only threads.
  */
 struct proc *kproc;
 
+/*
+ * The most recently assigned process id
+ */
+static pid_t lastpid;
 /*
  * Mechanism for making the kernel menu thread sleep while processes are running
  */
@@ -79,7 +83,7 @@ struct proc *
 proc_create(const char *name)
 {
 	struct proc *proc;
-
+	
 	proc = kmalloc(sizeof(*proc));
 	if (proc == NULL) {
 		return NULL;
@@ -89,7 +93,8 @@ proc_create(const char *name)
 		kfree(proc);
 		return NULL;
 	}
-
+	proc->p_pid = ++lastpid; //SEA
+	DEBUG(DB_THREADS, "lastpid: %u\n", (unsigned) lastpid);
 	threadarray_init(&proc->p_threads);
 	spinlock_init(&proc->p_lock);
 
@@ -191,9 +196,16 @@ proc_destroy(struct proc *proc)
  * Create the process structure for the kernel.
  */
 void
-proc_bootstrap(void)
-{
-  kproc = proc_create("[kernel]");
+proc_bootstrap(void) {
+
+	proctable = (proc **) kmalloc(MINPROCTABLE * sizeof(proc *)); //SEA
+	if (proctable == NULL) {
+		panic("Could not allocate process table");
+	}
+
+	lastpid = (pid_t) 0;
+	kproc = proc_create("[kernel]");
+  
   if (kproc == NULL) {
     panic("proc_create for kproc failed\n");
   }
@@ -259,7 +271,8 @@ proc_create_runprogram(const char *name)
 	if (proc == NULL) {
 		return NULL;
 	}
-
+	KASSERT(proc->p_pid >= PID_MIN); // shouldn't it be 1????
+	KASSERT(proc->p_pid <= PID_MAX);
 #ifdef UW
 	/* open the console - this should always succeed */
 	console_path = kstrdup("con:");

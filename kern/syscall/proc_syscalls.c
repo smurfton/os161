@@ -18,6 +18,7 @@ sys_fork(struct trapframe *tf, int *retval) {
 	struct proc * proc;
 	struct trapframe *temp_tf;
 	int result;
+	pid_t childpid;
 
 //	DEBUG(DB_SYSCALL, "Syscall: sys_fork()\n");	
 
@@ -34,6 +35,7 @@ sys_fork(struct trapframe *tf, int *retval) {
 		kfree(temp_tf);
 		return ENOMEM;
 	}
+	childpid = proc->p_pid;
 	result = as_copy(curproc->p_addrspace, &(proc->p_addrspace));
 	if (result) {
 		proc_destroy(proc);
@@ -51,7 +53,7 @@ sys_fork(struct trapframe *tf, int *retval) {
 		proc_destroy(proc);
 		return result;
 	}
-	*retval = 2;
+	*retval = proc->p_pid;
 	return 0;
 }
 
@@ -99,7 +101,7 @@ sys_getpid(pid_t *retval)
 {
   /* for now, this is just a stub that always returns a PID of 1 */
   /* you need to fix this to make it work properly */
-  *retval = 1;
+  *retval = curproc->p_pid;
   return(0);
 }
 

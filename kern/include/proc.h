@@ -38,13 +38,12 @@
 
 #include <spinlock.h>
 #include <thread.h> /* required for struct threadarray */
-
+#include <limits.h>
 struct addrspace;
 struct vnode;
 #ifdef UW
 struct semaphore;
 #endif // UW
-
 /*
  * Process structure.
  */
@@ -69,13 +68,20 @@ struct proc {
 #endif
 
 	/* add more material here as needed */
-// pid_t p_pid;
+	pid_t p_pid;
 // pid_t pp_pid;
 // struct proc *p_pproc;
 // exitcode
 // waitpid
 // 
 };
+
+/*
+ * Process table
+ */
+#define MINPROCTABLE 16
+#define MAXPROCTABLE __MAX_PID
+proc **proctable;
 
 /* This is the process structure for the kernel and for kernel-only threads. */
 extern struct proc *kproc;
