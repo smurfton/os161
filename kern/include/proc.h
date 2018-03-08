@@ -81,7 +81,7 @@ struct proc {
  */
 #define MINPROCTABLE 16
 #define MAXPROCTABLE __MAX_PID
-proc **proctable;
+struct proc **proctable;
 
 /* This is the process structure for the kernel and for kernel-only threads. */
 extern struct proc *kproc;

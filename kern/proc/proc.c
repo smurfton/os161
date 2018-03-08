@@ -73,7 +73,7 @@ static struct semaphore *proc_count_mutex;
 struct semaphore *no_proc_sem;   
 #endif  // UW
 
-
+static struct lock *proc_table_mutex;
 
 /*
  * Create a proc structure.
@@ -198,17 +198,20 @@ proc_destroy(struct proc *proc)
 void
 proc_bootstrap(void) {
 
-	proctable = (proc **) kmalloc(MINPROCTABLE * sizeof(proc *)); //SEA
+	proctable = (struct proc **) kmalloc(MINPROCTABLE * sizeof(struct proc *)); //SEA
 	if (proctable == NULL) {
 		panic("Could not allocate process table");
 	}
-
+	proc_table_mutex = lock_create("proc_table_mutex");
+	if (proc_table_mutex == NULL) {
+		panic("lock_create for proc_table_mutex failed\n");
+	}
 	lastpid = (pid_t) 0;
-	kproc = proc_create("[kernel]");
-  
+	kproc = proc_create("[kernel]");  
   if (kproc == NULL) {
     panic("proc_create for kproc failed\n");
   }
+	proctable[kproc->p_pid] = kproc; //SEA
 #ifdef UW
   proc_count = 0;
   proc_count_mutex = sem_create("proc_count_mutex",1);
