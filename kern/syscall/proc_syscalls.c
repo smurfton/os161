@@ -115,7 +115,7 @@ sys_waitpid(pid_t pid,
 {
   int exitstatus;
   int result;
-
+//  struct proc *childproc;
   /* this is just a stub implementation that always reports an
      exit status of 0, regardless of the actual exit status of
      the specified process.   
@@ -128,6 +128,8 @@ sys_waitpid(pid_t pid,
   if (options != 0) {
     return(EINVAL);
   }
+  
+
   /* for now, just pretend the exitstatus is 0 */
   exitstatus = 0;
   result = copyout((void *)&exitstatus,status,sizeof(int));

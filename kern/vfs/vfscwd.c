@@ -41,7 +41,7 @@
 #include <vfs.h>
 #include <fs.h>
 #include <vnode.h>
-
+#include <synch.h>
 /*
  * Get current directory as a vnode.
  */

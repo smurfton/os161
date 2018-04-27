@@ -36,7 +36,7 @@
  * p_lock is intended to be held when manipulating the pointers in the
  * proc structure, not while doing any significant work with the
  * things they point to. Rearrange this (and/or change it to be a
- * regular lock) as needed.
+ * regular lock) as needed. //SEA It's a lock now.
  *
  * Unless you're implementing multithreaded user processes, the only
  * process that will have more than one thread is the kernel process.
@@ -72,8 +72,54 @@ static struct semaphore *proc_count_mutex;
 /* used to signal the kernel menu thread when there are no processes */
 struct semaphore *no_proc_sem;   
 #endif  // UW
+/*
+ * Process Table
+ */
+#define MINPROCTABLE 8
+#define MAXPROCTABLE PID_MAX 
+static struct proc ** proctable;
+static pid_t proc_table_size;
+static struct semaphore *proc_table_mutex;
+static 
 
-static struct lock *proc_table_mutex;
+int
+proctable_insert(struct proc *p) {
+	pid_t i;
+	struct proc **nproctable;
+	KASSERT(proctable != NULL);
+	P(proc_table_mutex);
+	for (i = lastpid; i < proc_table_size; i++) {
+		if (proctable[(unsigned) i] == NULL) {
+			proctable[(unsigned) i] = p;
+			kprintf("pid: %d pointer: %p\n", (int) i, (void *) p);
+			lastpid = i;
+			p->p_pid = i;
+			V(proc_table_mutex);
+			return 0;
+		}
+	}
+	if (i >= proc_table_size && proc_table_size < MAXPROCTABLE) {
+		nproctable = (struct proc **) kmalloc(2 * proc_table_size * sizeof(struct proc *));
+		if (nproctable == NULL) {
+			V(proc_table_mutex);
+			panic("Proc_table_insert failed!");
+			return 1;
+		}
+		
+		memcpy((void*)nproctable, (void*)proctable, (size_t) proc_table_size * sizeof (struct proc *));
+		kfree(proctable);
+		proctable = nproctable;
+		proc_table_size *= 2;
+		proctable[(unsigned) i] = p;
+		V(proc_table_mutex);
+		p->p_pid = i;
+		lastpid = i;
+		return 0;
+	}
+	V(proc_table_mutex);
+	return 1;
+
+}
 
 /*
  * Create a proc structure.
@@ -83,7 +129,7 @@ struct proc *
 proc_create(const char *name)
 {
 	struct proc *proc;
-	
+//	int result;
 	proc = kmalloc(sizeof(*proc));
 	if (proc == NULL) {
 		return NULL;
@@ -93,17 +139,15 @@ proc_create(const char *name)
 		kfree(proc);
 		return NULL;
 	}
-	proc->p_pid = ++lastpid; //SEA
-	DEBUG(DB_THREADS, "lastpid: %u\n", (unsigned) lastpid);
-	threadarray_init(&proc->p_threads);
 	spinlock_init(&proc->p_lock);
+	threadarray_init(&proc->p_threads);
 
 	/* VM fields */
 	proc->p_addrspace = NULL;
 
 	/* VFS fields */
 	proc->p_cwd = NULL;
-
+	proc->p_children = NULL;
 #ifdef UW
 	proc->console = NULL;
 #endif // UW
@@ -167,10 +211,14 @@ proc_destroy(struct proc *proc)
 	  vfs_close(proc->console);
 	}
 #endif // UW
-
 	threadarray_cleanup(&proc->p_threads);
 	spinlock_cleanup(&proc->p_lock);
-
+	
+//	proc->p_isZombie = 1;
+//	proctable[proc->p_pid] = NULL; 
+//	if (proc->p_pid < lastpid) {
+//		lastpid = proc->p_pid;
+//	}
 	kfree(proc->p_name);
 	kfree(proc);
 
@@ -197,31 +245,35 @@ proc_destroy(struct proc *proc)
  */
 void
 proc_bootstrap(void) {
-
 	proctable = (struct proc **) kmalloc(MINPROCTABLE * sizeof(struct proc *)); //SEA
 	if (proctable == NULL) {
 		panic("Could not allocate process table");
 	}
-	proc_table_mutex = lock_create("proc_table_mutex");
-	if (proc_table_mutex == NULL) {
-		panic("lock_create for proc_table_mutex failed\n");
-	}
-	lastpid = (pid_t) 0;
+	proc_table_size = MINPROCTABLE;
+	lastpid = (pid_t) 1;
+	
 	kproc = proc_create("[kernel]");  
-  if (kproc == NULL) {
-    panic("proc_create for kproc failed\n");
-  }
-	proctable[kproc->p_pid] = kproc; //SEA
+	if (kproc == NULL) {
+		panic("proc_create for kproc failed\n");
+	}
+	
+	//Space is guaranteed before other processes are created.
+	proctable[lastpid] = kproc; //SEA
+	lastpid++; //SEA
 #ifdef UW
-  proc_count = 0;
-  proc_count_mutex = sem_create("proc_count_mutex",1);
-  if (proc_count_mutex == NULL) {
-    panic("could not create proc_count_mutex semaphore\n");
-  }
-  no_proc_sem = sem_create("no_proc_sem",0);
-  if (no_proc_sem == NULL) {
-    panic("could not create no_proc_sem semaphore\n");
-  }
+	proc_count = 0;
+	proc_count_mutex = sem_create("proc_count_mutex",1);
+	if (proc_count_mutex == NULL) {
+		panic("could not create proc_count_mutex semaphore\n");
+	}
+	no_proc_sem = sem_create("no_proc_sem",0);
+	if (no_proc_sem == NULL) {
+		panic("could not create no_proc_sem semaphore\n");
+	}
+	proc_table_mutex = sem_create("proctable", 1);
+	if (proc_table_mutex == NULL) {
+		panic("sem_create for proc_table_mutex failed\n");
+	}
 #endif // UW 
 }
 /* //UNNEEDED (YET)
@@ -272,9 +324,16 @@ proc_create_runprogram(const char *name)
 
 	proc = proc_create(name);
 	if (proc == NULL) {
+	//	panic("proc create fails!");
 		return NULL;
 	}
-	KASSERT(proc->p_pid >= PID_MIN); // shouldn't it be 1????
+	if (proctable_insert(proc)) {
+		kfree(proc);
+		KASSERT(false);
+		return NULL;
+	}
+//	kprintf("new pid: %u\n", (unsigned) lastpid);
+	KASSERT(proc->p_pid >= PID_MIN); 
 	KASSERT(proc->p_pid <= PID_MAX);
 #ifdef UW
 	/* open the console - this should always succeed */
@@ -318,6 +377,8 @@ proc_create_runprogram(const char *name)
 	P(proc_count_mutex); 
 	proc_count++;
 	V(proc_count_mutex);
+
+//	proc->p_isZombie = 0;
 #endif // UW
 
 	return proc;

@@ -44,6 +44,7 @@ struct vnode;
 #ifdef UW
 struct semaphore;
 #endif // UW
+
 /*
  * Process structure.
  */
@@ -69,19 +70,18 @@ struct proc {
 
 	/* add more material here as needed */
 	pid_t p_pid;
-// pid_t pp_pid;
-// struct proc *p_pproc;
-// exitcode
+	pid_t pp_pid;
+	struct proc *p_pproc;
+	unsigned long p_childcount;
+	struct pid_t *p_children;
+//	struct cv *p_dead; // wake on zombie
+	//	int exitcode;
 // waitpid
 // 
 };
 
-/*
- * Process table
- */
-#define MINPROCTABLE 16
-#define MAXPROCTABLE __MAX_PID
-struct proc **proctable;
+
+
 
 /* This is the process structure for the kernel and for kernel-only threads. */
 extern struct proc *kproc;
