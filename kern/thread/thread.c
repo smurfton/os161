@@ -199,6 +199,7 @@ cpu_create(unsigned hardware_number)
 	if (c->c_curthread == NULL) {
 		panic("cpu_create: thread_create failed\n");
 	}
+	c->c_curthread->t_cpu = c;
 	result = proc_addthread(kproc, c->c_curthread);
 	if (result) {
 		panic("cpu_create: proc_addthread:: %s\n", strerror(result));

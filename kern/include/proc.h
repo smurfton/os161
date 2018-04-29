@@ -50,7 +50,8 @@ struct semaphore;
  */
 struct proc {
 	char *p_name;			/* Name of this process */
-	struct spinlock p_lock;		/* Lock for this structure */
+//	struct spinlock p_lock;		/* Lock for this structure */ // replaced.
+	struct lock *p_lk; // moving to real lock slowly.
 	struct threadarray p_threads;	/* Threads in this process */
 
 	/* VM */

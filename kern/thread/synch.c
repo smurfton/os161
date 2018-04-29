@@ -39,7 +39,7 @@
 #include <thread.h>
 #include <current.h>
 #include <synch.h>
-
+#include <proc.h>
 ////////////////////////////////////////////////////////////
 //
 // Semaphore.
@@ -148,7 +148,6 @@ V(struct semaphore *sem)
 // Lock.
 
 
-
 struct lock *
 lock_create(const char *name)
 { 
@@ -234,6 +233,30 @@ bool
 lock_do_i_hold(struct lock *lock)
 {
 	return (lock != NULL) && (lock->lk_holder == curthread);
+}
+
+// For proc_addthread and proc_remthread, which have shenanigans that break wchan. or curproc. One of those. Also pretty sure cpu_create happens in an interrupt, so there's no winning
+void
+lock_bad_acquire(struct lock *lock) 
+{
+   KASSERT(lock != NULL);
+	spinlock_acquire(&lock->lk_lock);
+	while(lock->lk_holder != NULL) {
+		spinlock_release(&lock->lk_lock);
+		thread_yield();
+		spinlock_acquire(&lock->lk_lock);
+	}
+	
+	return;
+}
+
+void
+lock_bad_release(struct lock *lock) 
+{
+	KASSERT(lock != NULL);
+	lock->lk_holder = NULL;
+   wchan_wakeone(lock->lk_wchan);
+   spinlock_release(&lock->lk_lock);
 }
 
 ////////////////////////////////////////////////////////////

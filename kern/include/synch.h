@@ -96,7 +96,9 @@ void lock_acquire(struct lock *);
 void lock_release(struct lock *);
 bool lock_do_i_hold(struct lock *);
 void lock_destroy(struct lock *);
-
+//only for cases where curproc is weird.
+void lock_bad_acquire(struct lock *);
+void lock_bad_release(struct lock *); //XXX//for proc_addthread and proc_remthread
 
 /*
  * Condition variable.
