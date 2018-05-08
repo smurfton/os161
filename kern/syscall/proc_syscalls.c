@@ -58,6 +58,20 @@ sys_fork(struct trapframe *tf, int *retval) {
 }
 
 static 
+int 
+proc_exorcise(pid_t pid) 
+{
+	int exitcode;
+	struct proc *child = proctable_deregister(pid);
+	KASSERT(child != NULL);
+	KASSERT(child->p_status == PROC_ZOMBIE);
+	exitcode = child->p_exitcode; // format happens in _exit()
+	lock_release(child->p_lock);
+	proc_destroy(child);
+	return exitcode;
+}
+
+static 
 void 
 ring(pid_t parent) {
 	KASSERT(proctable != NULL);
@@ -80,12 +94,17 @@ migrate(pid_t child) {
 	P(proc_table_mutex);
 	struct proc * pc = proctable[child];
 	V(proc_table_mutex);
-	if(!lock_do_i_hold(pc->p_lock)) {
-		lock_acquire(pc->p_lock);
+	lock_acquire(pc->p_lock);
+
+	if(pc->p_status == PROC_ZOMBIE) {
+		lock_release(pc->p_lock);
+		proc_exorcise(child);
 	}
-	pc->pp_pid = 0;
-	pc->p_status = PROC_ORPHAN;
-	lock_release(pc->p_lock);
+	else {
+		pc->pp_pid = 0;
+		pc->p_status = PROC_ORPHAN;
+		lock_release(pc->p_lock);
+	}
 }
 
 
@@ -202,18 +221,6 @@ proc_getzombie(struct proc * p, int *haschild)
 	return NULL;
 }
 
-static 
-int 
-proc_exorcise(pid_t pid) 
-{
-	int exitcode;
-	struct proc *child = proctable_deregister(pid);
-	KASSERT(child != NULL);
-	KASSERT(child->p_status == PROC_ZOMBIE);
-	exitcode = child->p_exitcode; // format happens in _exit()
-	proc_destroy(child);
-	return exitcode;
-}
 
 /* handler for waitpid() system call                */
 
@@ -226,7 +233,6 @@ sys_waitpid(pid_t pid,
   int exitstatus;
   int result;
   struct proc *child;
-//  struct proc *childproc;
   /* this is just a stub implementation that always reports an
      exit status of 0, regardless of the actual exit status of
      the specified process.   
@@ -237,8 +243,6 @@ sys_waitpid(pid_t pid,
   */
 
   KASSERT(proc_table_mutex != NULL);
-
-  curthread->t_in_interrupt = false; // this is literally required to sleep.
 	
   if (options != 0) {
     return(EINVAL);
@@ -263,6 +267,7 @@ sys_waitpid(pid_t pid,
   }
   else {
 	  unsigned long i = 0;
+	  lock_acquire(curproc->p_lock);
 	  for (i = 0; i < curproc->p_childcount && curproc->p_children[i] != pid; i++)
 		  ;
 	  if (i == curproc->p_childcount) {
@@ -270,29 +275,27 @@ sys_waitpid(pid_t pid,
 		  return ECHILD;
 	  }
 	  else {
-		  curproc->p_children[i] = -1;
+		  curproc->p_children[i] = -1; // Entry will no longer be needed.
 	  }
+	  lock_release(curproc->p_lock);
+	   
 	  P(proc_table_mutex);
 	  if (proctable[pid] == NULL) {
 		  V(proc_table_mutex);
 		  return ESRCH; // tbh this is a bad sign already--the proc struct got corrupted.
 	  }
-
 	  child = proctable[pid];
 	  V(proc_table_mutex);
 	  lock_acquire(child->p_lock);
 	 
 	  while (child->p_status != PROC_ZOMBIE) {
-		  lock_release(child->p_lock);
-		  cv_wait(curproc->p_ring, curproc->p_lock);
+		  cv_wait(curproc->p_ring, child->p_lock);
 		  KASSERT(child != NULL);
-		  lock_acquire(child->p_lock);
+		  KASSERT(child->p_lock != NULL);
 	  }
 	  exitstatus = proc_exorcise(child->p_pid);
-	  lock_release(child->p_lock);
   }
-
-  exitstatus = 0;
+//  kprintf("we get to the end\n");
   result = copyout((void *)&exitstatus,status,sizeof(int));
   if (result) {
     return(result);

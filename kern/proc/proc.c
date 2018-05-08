@@ -87,7 +87,7 @@ proctable_insert(struct proc *p) {
 	for (i = lastpid; i < proc_table_size; i++) {
 		if (proctable[(unsigned) i] == NULL) {
 			proctable[(unsigned) i] = p;
-			kprintf("pid: %d pointer: %p\n", (int) i, (void *) p);
+			DEBUG(DB_THREADS,"pid: %d pointer: %p\n", (int) i, (void *) p);
 			lastpid = i;
 			p->p_pid = i;
 			V(proc_table_mutex);
