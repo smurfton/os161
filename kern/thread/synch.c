@@ -180,7 +180,7 @@ void
 lock_destroy(struct lock *lock)
 {
 	KASSERT(lock != NULL);
-	KASSERT(lock->lk_holder == NULL || lock->lk_holder == curcpu->c_self);
+	KASSERT(lock->lk_holder == NULL || lock->lk_holder == curthread);
 	spinlock_cleanup(&lock->lk_lock);//SEA
 	wchan_destroy(lock->lk_wchan);
 	kfree(lock->lk_name);
@@ -194,8 +194,6 @@ lock_acquire(struct lock *lock)
 {//SEA
 	KASSERT(lock != NULL);
 	//NEVER KPRINTF IN THIS FUNCTION.
-	//DEBUG(DB_SYNCPROB, "\nLOCK_ACQUIRE %s\n", lock->lk_name);
-//	KASSERT(curthread->t_in_interrupt == false); // XXX :<
 	if(curthread->t_in_interrupt == true) {
 		panic("Curthread in interrupt on %s\n", lock->lk_name);
 	}
@@ -210,7 +208,7 @@ lock_acquire(struct lock *lock)
 	}
 	
 	KASSERT(lock->lk_holder == NULL);
-	lock->lk_holder = curcpu->c_self;
+	lock->lk_holder = curthread;
 	spinlock_release(&lock->lk_lock);
 	return;
 
@@ -221,10 +219,10 @@ lock_release(struct lock *lock)
 {
 
 	KASSERT(lock != NULL);
-	KASSERT(lock->lk_holder == curcpu->c_self);
-	KASSERT(curthread->t_in_interrupt == false); // XXX :<
+	KASSERT(lock->lk_holder == curthread);
+
+	KASSERT(curthread->t_in_interrupt == false);
 	//NEVER KPRINTF IN THIS FUNCTION.
-	//DEBUG(DB_SYNCPROB, "\nLOCK_RELEASE %s\n", lock->lk_name);
 	spinlock_acquire(&lock->lk_lock);
 		
 	lock->lk_holder = NULL;
@@ -235,7 +233,7 @@ lock_release(struct lock *lock)
 bool
 lock_do_i_hold(struct lock *lock)
 {
-	return (lock != NULL) && (lock->lk_holder == curcpu->c_self);
+	return (lock != NULL) && (lock->lk_holder == curthread);
 }
 
 
