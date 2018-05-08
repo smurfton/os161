@@ -20,8 +20,6 @@ sys_fork(struct trapframe *tf, int *retval) {
 	int result;
 	pid_t childpid;
 
-//	DEBUG(DB_SYSCALL, "Syscall: sys_fork()\n");	
-
 	
 	temp_tf = (struct trapframe *) kmalloc(sizeof (struct trapframe));
 	if(temp_tf == NULL) {
@@ -42,7 +40,6 @@ sys_fork(struct trapframe *tf, int *retval) {
 		kfree(temp_tf);
 		return result;
 	}
-	//XXX PID	
 	result = thread_fork(curproc->p_name,
 			proc,
 			enter_forked_process,
@@ -57,6 +54,11 @@ sys_fork(struct trapframe *tf, int *retval) {
 	return 0;
 }
 
+
+/*
+ * Helper function for both waitpid and _exit.
+ * Cleans up the listed process, which may be curproc.
+ */
 static 
 int 
 proc_exorcise(pid_t pid) 
@@ -71,6 +73,11 @@ proc_exorcise(pid_t pid)
 	return exitcode;
 }
 
+
+/* 
+ * Helper function for _exit.
+ * Notifies the parent that a child has exited.
+ */
 static 
 void 
 ring(pid_t parent) {
@@ -85,6 +92,10 @@ ring(pid_t parent) {
 	cv_signal(pp->p_ring, pp->p_lock);
 }
 
+/*
+ * Helper function for _exit().
+ * Orphans the child pid given and cleans up zombies.
+ */
 static
 void
 migrate(pid_t child) {
@@ -109,19 +120,17 @@ migrate(pid_t child) {
 
 
 
-  /* this implementation of sys__exit does not do anything with the exit code */
-  /* this needs to be fixed to get exit() and waitpid() working properly */
-//p uw-testbin/onefork
+/*
+ * sys__exit accepts an exitcode and stores it within the process if it has a parent.
+ * It ought to work with the menu so that I can remove Waterloo's no_proc_sem hack, 
+ * but for now, I haven't done that.
+ */
 void 
 sys__exit(int exitcode) {
 
   struct addrspace *as;
   struct proc *p = curproc;
-	bool badppid = false;
   enum proc_status old_status;
-  /* for now, just include this to keep the compiler from complaining about
-     an unused variable */
-  //(void)exitcode;
   DEBUG(DB_SYSCALL,"\nSyscall: _exit(%d)\n",exitcode);
   lock_acquire(p->p_lock);
  
@@ -132,18 +141,14 @@ sys__exit(int exitcode) {
 
   if (p->pp_pid < 2 && old_status == PROC_OWNED) {
 	  old_status = PROC_ORPHAN;
-	  badppid = true;
   }
 
   for (unsigned long i = 0; i < p->p_childcount; i++) {
 	  migrate(p->p_children[i]);
 	  p->p_children[i] = -1;
   }
-  lock_release(p->p_lock);//XXX
+  lock_release(p->p_lock);
   
-  if (badppid) { // should be no more DEADBEEF if owned.
-	  DEBUG(DB_SYSCALL, "\n_exit: Bad pp_pid: %p\n", (void *) p->pp_pid);
-  }
   
   if (old_status == PROC_OWNED) {
 	  DEBUG(DB_SYSCALL, "\n_exit: PROC_OWNED: %d:%s\n",(int)p->p_pid, p->p_name);
@@ -185,15 +190,21 @@ sys__exit(int exitcode) {
 }
 
 
-/* handler for getpid() system call                */
+/* handler for getpid() system call.              */
 int
 sys_getpid(pid_t *retval)
 {
+  lock_acquire(curproc->p_lock);
   *retval = curproc->p_pid;
+  lock_release(curproc->p_lock);
   return(0);
 }
 
 
+/*
+ * Helper for waitpid() system call when using WAIT_ANY.
+ * Finds and returns a child process which is a ZOMBIE.
+ */
 static 
 struct proc *
 proc_getzombie(struct proc * p, int *haschild) 
@@ -211,7 +222,7 @@ proc_getzombie(struct proc * p, int *haschild)
 
 			lock_acquire(child->p_lock);
 			if(child->p_status == PROC_ZOMBIE) {
-				lock_release(child->p_lock); // unnecessary
+				lock_release(child->p_lock); // lock is no longer required.
 				p->p_children[i] = 0; // clear entry.
 				return child;
 			}
@@ -233,20 +244,14 @@ sys_waitpid(pid_t pid,
   int exitstatus;
   int result;
   struct proc *child;
-  /* this is just a stub implementation that always reports an
-     exit status of 0, regardless of the actual exit status of
-     the specified process.   
-     In fact, this will return 0 even if the specified process
-     is still running, and even if it never existed in the first place.
-
-     Fix this!
-  */
 
   KASSERT(proc_table_mutex != NULL);
 	
+  // WNOHANG is not implimented yet.
   if (options != 0) {
     return(EINVAL);
   }
+  // WAIT_ANY branch.
   if (pid == WAIT_ANY || pid == WAIT_MYPGRP) {
 	  int haschild = 0;
 
@@ -255,19 +260,23 @@ sys_waitpid(pid_t pid,
 	  if (!haschild) {
 		  return ECHILD;
 	  }
+	  // a child was zombie
 	  else if (child != NULL) {
 		  KASSERT(child->pp_pid == curproc->p_pid);
 		  exitstatus = proc_exorcise(child->p_pid);
 	  }
+	  // No child was zombie
 	  else {
 		  cv_wait(curproc->p_ring, curproc->p_lock);
 		  child = proc_getzombie(curproc, &haschild);
 		  exitstatus = proc_exorcise(child->p_pid);
 	  }
   }
+  // pid specified branch
   else {
 	  unsigned long i = 0;
 	  lock_acquire(curproc->p_lock);
+	  // Only currently allowed to wait for children.
 	  for (i = 0; i < curproc->p_childcount && curproc->p_children[i] != pid; i++)
 		  ;
 	  if (i == curproc->p_childcount) {
@@ -278,24 +287,28 @@ sys_waitpid(pid_t pid,
 		  curproc->p_children[i] = -1; // Entry will no longer be needed.
 	  }
 	  lock_release(curproc->p_lock);
-	   
 	  P(proc_table_mutex);
+
+	  // I'm tempted to panic here, as this is always proctable or process 
+	  // corruption, but that's against documentation. sorta.
+	  // I'll fix this up eventually. //TODO
 	  if (proctable[pid] == NULL) {
 		  V(proc_table_mutex);
-		  return ESRCH; // tbh this is a bad sign already--the proc struct got corrupted.
+		  return ESRCH;
 	  }
 	  child = proctable[pid];
 	  V(proc_table_mutex);
+	  
 	  lock_acquire(child->p_lock);
-	 
 	  while (child->p_status != PROC_ZOMBIE) {
+		  // I'm cheating here, the child only releases the lock 
+		  // long after it rings the parent.
 		  cv_wait(curproc->p_ring, child->p_lock);
 		  KASSERT(child != NULL);
 		  KASSERT(child->p_lock != NULL);
 	  }
 	  exitstatus = proc_exorcise(child->p_pid);
   }
-//  kprintf("we get to the end\n");
   result = copyout((void *)&exitstatus,status,sizeof(int));
   if (result) {
     return(result);
