@@ -34,8 +34,8 @@
  * Header file for synchronization primitives.
  */
 
-
 #include <spinlock.h>
+#include <cpu.h>
 
 /*
  * Dijkstra-style semaphore.
@@ -75,7 +75,7 @@ void V(struct semaphore *);
 struct lock {
         char *lk_name;
 		  struct wchan *lk_wchan;
-		  volatile struct thread *lk_holder;
+		  volatile struct cpu *lk_holder;
 		  struct spinlock lk_lock;
 };
 
@@ -96,9 +96,6 @@ void lock_acquire(struct lock *);
 void lock_release(struct lock *);
 bool lock_do_i_hold(struct lock *);
 void lock_destroy(struct lock *);
-//only for cases where curproc is weird.
-void lock_bad_acquire(struct lock *);
-void lock_bad_release(struct lock *); //XXX//for proc_addthread and proc_remthread
 
 /*
  * Condition variable.

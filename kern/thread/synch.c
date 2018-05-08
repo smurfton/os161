@@ -180,7 +180,7 @@ void
 lock_destroy(struct lock *lock)
 {
 	KASSERT(lock != NULL);
-	KASSERT(lock->lk_holder == NULL);
+	KASSERT(lock->lk_holder == NULL || lock->lk_holder == curcpu->c_self);
 	spinlock_cleanup(&lock->lk_lock);//SEA
 	wchan_destroy(lock->lk_wchan);
 	kfree(lock->lk_name);
@@ -195,7 +195,10 @@ lock_acquire(struct lock *lock)
 	KASSERT(lock != NULL);
 	//NEVER KPRINTF IN THIS FUNCTION.
 	//DEBUG(DB_SYNCPROB, "\nLOCK_ACQUIRE %s\n", lock->lk_name);
-	KASSERT(curthread->t_in_interrupt == false);
+//	KASSERT(curthread->t_in_interrupt == false); // XXX :<
+	if(curthread->t_in_interrupt == true) {
+		panic("Curthread in interrupt on %s\n", lock->lk_name);
+	}
 	
 	spinlock_acquire(&lock->lk_lock);
 	while (lock->lk_holder != NULL) {
@@ -207,7 +210,7 @@ lock_acquire(struct lock *lock)
 	}
 	
 	KASSERT(lock->lk_holder == NULL);
-	lock->lk_holder = curthread;
+	lock->lk_holder = curcpu->c_self;
 	spinlock_release(&lock->lk_lock);
 	return;
 
@@ -218,46 +221,23 @@ lock_release(struct lock *lock)
 {
 
 	KASSERT(lock != NULL);
-	KASSERT(lock->lk_holder == curthread);
-	KASSERT(curthread->t_in_interrupt == false);
+	KASSERT(lock->lk_holder == curcpu->c_self);
+	KASSERT(curthread->t_in_interrupt == false); // XXX :<
 	//NEVER KPRINTF IN THIS FUNCTION.
 	//DEBUG(DB_SYNCPROB, "\nLOCK_RELEASE %s\n", lock->lk_name);
 	spinlock_acquire(&lock->lk_lock);
 		
 	lock->lk_holder = NULL;
 	wchan_wakeone(lock->lk_wchan);
-	spinlock_release(&lock->lk_lock);
+	spinlock_release(&lock->lk_lock); 
 }
 
 bool
 lock_do_i_hold(struct lock *lock)
 {
-	return (lock != NULL) && (lock->lk_holder == curthread);
+	return (lock != NULL) && (lock->lk_holder == curcpu->c_self);
 }
 
-// For proc_addthread and proc_remthread, which have shenanigans that break wchan. or curproc. One of those. Also pretty sure cpu_create happens in an interrupt, so there's no winning
-void
-lock_bad_acquire(struct lock *lock) 
-{
-   KASSERT(lock != NULL);
-	spinlock_acquire(&lock->lk_lock);
-	while(lock->lk_holder != NULL) {
-		spinlock_release(&lock->lk_lock);
-		thread_yield();
-		spinlock_acquire(&lock->lk_lock);
-	}
-	
-	return;
-}
-
-void
-lock_bad_release(struct lock *lock) 
-{
-	KASSERT(lock != NULL);
-	lock->lk_holder = NULL;
-   wchan_wakeone(lock->lk_wchan);
-   spinlock_release(&lock->lk_lock);
-}
 
 ////////////////////////////////////////////////////////////
 //
@@ -329,7 +309,7 @@ cv_signal(struct cv *cv, struct lock *lock)
 {
 	KASSERT(cv != NULL && lock != NULL);
 	KASSERT(lock_do_i_hold(lock));
-
+	lock_release(lock);
 //	spinlock_acquire(&cv->cv_lock);
 	wchan_wakeone(cv->cv_wchan);
 //	spinlock_release(&cv->cv_lock);
@@ -344,7 +324,7 @@ cv_broadcast(struct cv *cv, struct lock *lock)
 	KASSERT(lock_do_i_hold(lock));
 	//SO NOISY
 	//DEBUG(DB_SYNCPROB, "\nBroadcast on CV: %s\n", cv->cv_name);
-
+	lock_release(lock); // this is required right???
 	wchan_wakeall(cv->cv_wchan);
 	return;
 }

@@ -45,13 +45,20 @@ struct vnode;
 struct semaphore;
 #endif // UW
 
+//status enumerated type
+enum proc_status {
+	PROC_ZOMBIE = 0,
+	PROC_ORPHAN,
+	PROC_OWNED
+};
+
 /*
  * Process structure.
  */
 struct proc {
 	char *p_name;			/* Name of this process */
-//	struct spinlock p_lock;		/* Lock for this structure */ // replaced.
-	struct lock *p_lk; // moving to real lock slowly.
+	struct lock *p_lock; /* lock for this structure */
+	struct spinlock p_threadlock;		/* Lock for threadarray only */
 	struct threadarray p_threads;	/* Threads in this process */
 
 	/* VM */
@@ -74,15 +81,24 @@ struct proc {
 	pid_t pp_pid;
 	struct proc *p_pproc;
 	unsigned long p_childcount;
-	struct pid_t *p_children;
-//	struct cv *p_dead; // wake on zombie
-	//	int exitcode;
+	pid_t *p_children;
+	struct cv *p_ring; // wake on zombie
+	enum proc_status p_status;
+	int p_exitcode;
 // waitpid
 // 
 };
 
 
+#define MINPROCTABLE 8
+#define MAXPROCTABLE PID_MAX
+struct proc ** proctable;
+pid_t proc_table_size;
+struct semaphore *proc_table_mutex;
 
+
+
+struct proc * proctable_deregister(pid_t pid);
 
 /* This is the process structure for the kernel and for kernel-only threads. */
 extern struct proc *kproc;

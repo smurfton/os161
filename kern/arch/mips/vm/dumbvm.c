@@ -117,7 +117,6 @@ vm_fault(int faulttype, vaddr_t faultaddress)
 	int spl;
 
 	faultaddress &= PAGE_FRAME;
-
 	DEBUG(DB_VM, "dumbvm: fault: 0x%x\n", faultaddress);
 
 	switch (faulttype) {
@@ -139,7 +138,7 @@ vm_fault(int faulttype, vaddr_t faultaddress)
 		 */
 		return EFAULT;
 	}
-
+	
 	as = curproc_getas();
 	if (as == NULL) {
 		/*
