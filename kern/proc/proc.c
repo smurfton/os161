@@ -43,6 +43,9 @@
  */
 
 #include <types.h>
+#if OPT_A2
+#include <array.h>
+#endif
 #include <proc.h>
 #include <current.h>
 #include <addrspace.h>
@@ -68,6 +71,9 @@ static struct semaphore *proc_count_mutex;
 /* used to signal the kernel menu thread when there are no processes */
 struct semaphore *no_proc_sem;   
 #endif  // UW
+
+
+
 
 /*
  * The most recently assigned process id
@@ -116,7 +122,6 @@ proctable_insert(struct proc *p) {
 	}
 	V(proc_table_mutex);
 	return 1;
-
 }
 
 struct proc *
@@ -156,27 +161,35 @@ proc_create(const char *name)
 		kfree(proc);
 		return NULL;
 	}
+#if OPT_A2
+	pidarray_init(&proc->p_children);
+#else
 	proc->p_children = kmalloc(32 * sizeof( pid_t)); 
-	//TODO make it adjust size
 	if(proc->p_children == NULL) {
 		lock_destroy(proc->p_lock);
 		kfree(proc->p_name);
 		kfree(proc);
 		return NULL;
 	}
+#endif
 	proc->p_ring = cv_create(name);
 	if(proc->p_ring == NULL) {
+#if OPT_A2
+		pidarray_cleanup(&proc->p_children);
+#else
 		kfree(proc->p_children);
+#endif
 		lock_destroy(proc->p_lock);
 		kfree(proc->p_name);
 		kfree(proc);
 		return NULL;
 	}
+#if !(OPT_A2)
 	proc->p_childcount = 32; // TODO: make it adjust size
 	for(unsigned long i = 0; i < proc->p_childcount; i++) {
 		proc->p_children[i] = -1;
 	}
-
+#endif
 
 	proc->p_exitcode	= -1;
 	spinlock_init(&proc->p_threadlock);
@@ -253,7 +266,11 @@ proc_destroy(struct proc *proc)
 	spinlock_cleanup(&proc->p_threadlock);
 	cv_destroy(proc->p_ring);
 	lock_destroy(proc->p_lock);
+#if OPT_A2
+	pidarray_cleanup(&proc->p_children);
+#else
 	kfree(proc->p_children);	
+#endif
 	kfree(proc->p_name);
 	kfree(proc);
 
@@ -323,7 +340,7 @@ proc_create_runprogram(const char *name)
 {
 	struct proc *proc;
 	char *console_path;
-	unsigned long i;
+	unsigned i;
 	proc = proc_create(name);
 	if (proc == NULL) {
 	//	panic("proc create fails!");
@@ -334,6 +351,20 @@ proc_create_runprogram(const char *name)
 		panic("proctable insert failed!\n");
 		return NULL;
 	}
+	
+	KASSERT(proc->p_pid >= PID_MIN); 
+	KASSERT(proc->p_pid <= PID_MAX);
+
+	proc->pp_pid = curproc->p_pid;
+
+#if OPT_A2
+	lock_acquire(curproc->p_lock);
+	pidarray_add(&curproc->p_children, &proc->p_pid, &i);
+	lock_release(curproc->p_lock);
+	if (i == (unsigned) -1) {
+		panic("No room for children!\n");
+	}
+#else
 	for (i = 0; i < curproc->p_childcount && curproc->p_children[i] != -1; i++)
 		;
 	
@@ -345,12 +376,8 @@ proc_create_runprogram(const char *name)
 	else {
 		curproc->p_children[i] = proc->p_pid;
 	}
-		
+#endif
 //	kprintf("new pid: %u\n", (unsigned) lastpid);
-	KASSERT(proc->p_pid >= PID_MIN); 
-	KASSERT(proc->p_pid <= PID_MAX);
-
-	proc->pp_pid = curproc->p_pid;
 // Proc status
    if(proc->pp_pid == 0) {
 		proc->p_status = PROC_ORPHAN;

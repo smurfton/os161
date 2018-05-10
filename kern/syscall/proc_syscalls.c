@@ -6,6 +6,9 @@
 #include <syscall.h>
 #include <synch.h>
 #include <current.h>
+#ifndef PROCINLINE
+#define PROCINLINE
+#endif
 #include <proc.h>
 #include <thread.h>
 #include <addrspace.h>
@@ -142,11 +145,19 @@ sys__exit(int exitcode) {
   if (p->pp_pid < 2 && old_status == PROC_OWNED) {
 	  old_status = PROC_ORPHAN;
   }
-
+#if OPT_A2
+  unsigned i = pidarray_num(&p->p_children);
+  while(i > 0) {
+	  migrate(*pidarray_get(&p->p_children, i - 1));
+	  pidarray_remove(&p->p_children, i - 1);
+	  i = pidarray_num(&p->p_children);
+  }
+#else
   for (unsigned long i = 0; i < p->p_childcount; i++) {
 	  migrate(p->p_children[i]);
 	  p->p_children[i] = -1;
   }
+#endif
   lock_release(p->p_lock);
   
   
@@ -209,10 +220,32 @@ static
 struct proc *
 proc_getzombie(struct proc * p, int *haschild) 
 {
+
+#if OPT_A2
+	unsigned i;
+	struct proc * child;
+	(void) haschild;
+
+	for ( i = 0; i < pidarray_num(&p->p_children); i++) {
+		P(proc_table_mutex);
+		child = proctable[*pidarray_get(&p->p_children, i)];
+		V(proc_table_mutex);
+
+		lock_acquire(child->p_lock);
+		if (child->p_status == PROC_ZOMBIE) {
+			lock_release(child->p_lock);
+			pidarray_remove(&p->p_children, i);
+			return child;
+		}
+		lock_release(child->p_lock);
+	}
+
+#else
 	unsigned long i;
 	struct proc * child;
 	KASSERT(haschild != NULL);
 	*haschild = 0;
+	
 	for (i = 0; i < p->p_childcount; i++) {
 		if (p->p_children[i] != 0) {
 			*haschild = 1;
@@ -229,6 +262,7 @@ proc_getzombie(struct proc * p, int *haschild)
 			lock_release(child->p_lock);
 		}
 	}
+#endif /* OPT_A2 */
 	return NULL;
 }
 
@@ -274,9 +308,40 @@ sys_waitpid(pid_t pid,
   }
   // pid specified branch
   else {
+#if OPT_A2
+	  unsigned i = 0;
+	  lock_acquire(curproc->p_lock);
+	  // Find child.
+
+	  for (i = 0; i < pidarray_num(&curproc->p_children) &&
+			  *pidarray_get(&curproc->p_children, i) != pid; i++)
+		  ;
+	  if (i == pidarray_num(&curproc->p_children)) {
+		  return ESRCH; // somewhat more accurate
+	  }
+	  else {
+		  pidarray_remove(&curproc->p_children, i);
+	  }
+	  lock_release(curproc->p_lock);
+
+	  P(proc_table_mutex);
+	  if (proctable[pid] == NULL) {
+		  panic("Proctable was corrupted!\n");
+	  }
+	 child = proctable[pid];
+	 V(proc_table_mutex);
+
+	 lock_acquire(child->p_lock);
+	 while (child->p_status != PROC_ZOMBIE) {
+		 cv_wait(curproc->p_ring, child->p_lock);
+	 }
+	 exitstatus = proc_exorcise(child->p_pid);
+
+#else
 	  unsigned long i = 0;
 	  lock_acquire(curproc->p_lock);
 	  // Only currently allowed to wait for children.
+
 	  for (i = 0; i < curproc->p_childcount && curproc->p_children[i] != pid; i++)
 		  ;
 	  if (i == curproc->p_childcount) {
@@ -308,6 +373,7 @@ sys_waitpid(pid_t pid,
 		  KASSERT(child->p_lock != NULL);
 	  }
 	  exitstatus = proc_exorcise(child->p_pid);
+#endif /* OPT_A2 */
   }
   result = copyout((void *)&exitstatus,status,sizeof(int));
   if (result) {

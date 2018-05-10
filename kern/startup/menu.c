@@ -43,6 +43,7 @@
 #include <sfs.h>
 #include <syscall.h>
 #include <test.h>
+#include <opt-A2.h>
 #include "opt-synchprobs.h"
 #include "opt-sfs.h"
 #include "opt-net.h"
@@ -161,6 +162,9 @@ common_prog(int nargs, char **args)
 	/* wait until the process we have just launched - and any others that it 
 	   may fork - is finished before proceeding */
 	P(no_proc_sem); //ASST1
+#if OPT_A2
+	pidarray_setsize(&kproc->p_children, 0);// TODO: wait on children.
+#endif /* OPT_A2 */
 #endif // UW
 	return 0;
 }

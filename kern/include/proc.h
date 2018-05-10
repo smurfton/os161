@@ -39,6 +39,10 @@
 #include <spinlock.h>
 #include <thread.h> /* required for struct threadarray */
 #include <limits.h>
+#include <opt-A2.h>
+#if OPT_A2
+#include <array.h>
+#endif
 struct addrspace;
 struct vnode;
 #ifdef UW
@@ -55,6 +59,13 @@ enum proc_status {
 /*
  * Process structure.
  */
+
+#ifndef PROCINLINE
+#define PROCINLINE INLINE
+#endif
+DECLARRAY_BYTYPE(pidarray, pid_t);
+DEFARRAY_BYTYPE(pidarray, pid_t, PROCINLINE);
+
 struct proc {
 	char *p_name;			/* Name of this process */
 	struct lock *p_lock; /* lock for this structure */
@@ -80,14 +91,19 @@ struct proc {
 	pid_t p_pid;
 	pid_t pp_pid;
 	struct proc *p_pproc;
+#if OPT_A2
+	struct pidarray p_children;
+#else
 	unsigned long p_childcount;
 	pid_t *p_children;
+#endif
 	struct cv *p_ring; // wake on zombie
 	enum proc_status p_status;
 	int p_exitcode;
 // waitpid
 // 
 };
+
 
 
 #define MINPROCTABLE 8

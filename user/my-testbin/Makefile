@@ -7,7 +7,6 @@ SUBDIRS= example \
 			writeConsole \
 			timeOfDay \
 			getpid \
-			forktest \
-			wpidcheck
+			forktest 
 
 .include "$(TOP)/mk/os161.subdir.mk"

@@ -337,8 +337,8 @@ file      thread/threadlist.c
 file      vm/kmalloc.c
 file      vm/uw-vmstats.c
 # UW Mod - no longer used
-#defoption vm
-#optfile   vm   vm/vm.c
+# defoption vm
+# optfile   vm   vm/vm.c
 # optofffile dumbvm   vm/addrspace.c
 
 #
