@@ -36,7 +36,10 @@
 
 
 #include <vm.h>
-
+#include <opt-A3.h>
+#if OPT_A3
+#include <elf.h> // for p_flags
+#endif /* OPT_A3 */
 struct vnode;
 
 
@@ -47,13 +50,21 @@ struct vnode;
  * You write this.
  */
 
+
+
 struct addrspace {
   vaddr_t as_vbase1;
   paddr_t as_pbase1;
   size_t as_npages1;
+#if OPT_A3
+  int as_flags1;
+#endif /* OPT_A3 */
   vaddr_t as_vbase2;
   paddr_t as_pbase2;
   size_t as_npages2;
+#if OPT_A3
+  int as_flags2;
+#endif /* OPT_A3 */
   paddr_t as_stackpbase;
 };
 

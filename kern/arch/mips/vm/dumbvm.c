@@ -38,6 +38,9 @@
 #include <addrspace.h>
 #include <vm.h>
 #include <opt-A3.h>
+#if OPT_A3
+#include <elf.h> // for flag definitions
+#endif /* OPT_A3 */
 /*
  * Dumb MIPS-only "VM system" that is intended to only be just barely
  * enough to struggle off the ground. You should replace all of this
@@ -115,14 +118,21 @@ vm_fault(int faulttype, vaddr_t faultaddress)
 	uint32_t ehi, elo;
 	struct addrspace *as;
 	int spl;
+#if OPT_A3
+	int flags;
+#endif /* OPT_A3 */
 
 	faultaddress &= PAGE_FRAME;
 	DEBUG(DB_VM, "dumbvm: fault: 0x%x\n", faultaddress);
 
 	switch (faulttype) {
 	    case VM_FAULT_READONLY:
+#if OPT_A3
+			 return EFAULT;
+#else
 		/* We always create pages read-write, so we can't get this */
 		panic("dumbvm: got VM_FAULT_READONLY\n");
+#endif /* OPT_A3 */
 	    case VM_FAULT_READ:
 	    case VM_FAULT_WRITE:
 		break;
@@ -161,7 +171,10 @@ vm_fault(int faulttype, vaddr_t faultaddress)
 	KASSERT((as->as_vbase2 & PAGE_FRAME) == as->as_vbase2);
 	KASSERT((as->as_pbase2 & PAGE_FRAME) == as->as_pbase2);
 	KASSERT((as->as_stackpbase & PAGE_FRAME) == as->as_stackpbase);
-
+#if OPT_A3
+	KASSERT(as->as_flags1 != 0);
+	KASSERT(as->as_flags2 != 0);
+#endif /* OPT_A3 */
 	vbase1 = as->as_vbase1;
 	vtop1 = vbase1 + as->as_npages1 * PAGE_SIZE;
 	vbase2 = as->as_vbase2;
@@ -171,16 +184,26 @@ vm_fault(int faulttype, vaddr_t faultaddress)
 
 	if (faultaddress >= vbase1 && faultaddress < vtop1) {
 		paddr = (faultaddress - vbase1) + as->as_pbase1;
+#if OPT_A3
+		flags = as->as_flags1;
+#endif /* OPT_A3 */
 	}
 	else if (faultaddress >= vbase2 && faultaddress < vtop2) {
 		paddr = (faultaddress - vbase2) + as->as_pbase2;
+#if OPT_A3
+		flags = as->as_flags2;
+#endif /* OPT_A3 */
 	}
 	else if (faultaddress >= stackbase && faultaddress < stacktop) {
 		paddr = (faultaddress - stackbase) + as->as_stackpbase;
+#if OPT_A3
+		flags = PF_R | PF_W; // Probably best to not include X? 
+#endif /* OPT_A3 */
 	}
 	else {
 		return EFAULT;
 	}
+
 
 	/* make sure it's page-aligned */
 	KASSERT((paddr & PAGE_FRAME) == paddr);
@@ -194,7 +217,14 @@ vm_fault(int faulttype, vaddr_t faultaddress)
 			continue;
 		}
 		ehi = faultaddress;
+#if OPT_A3
+		elo = paddr | TLBLO_VALID;
+		if (flags & PF_W) {
+			elo |= TLBLO_DIRTY;
+		}
+#else
 		elo = paddr | TLBLO_DIRTY | TLBLO_VALID;
+#endif
 		DEBUG(DB_VM, "dumbvm: 0x%x -> 0x%x\n", faultaddress, paddr);
 		tlb_write(ehi, elo, i);
 		splx(spl);
@@ -202,7 +232,10 @@ vm_fault(int faulttype, vaddr_t faultaddress)
 	}
 #if OPT_A3
 	ehi = faultaddress;
-	elo = paddr | TLBLO_DIRTY | TLBLO_VALID;
+	elo = paddr | TLBLO_VALID;
+	if (flags & PF_W) {
+		elo |= TLBLO_DIRTY;
+	}
 	DEBUG(DB_VM, "Ran out of TLB entries!\ndumbvm: 0x%x -> 0x%x\n", faultaddress, paddr);
 	tlb_random(ehi, elo);
 	splx(spl);
@@ -225,9 +258,11 @@ as_create(void)
 	as->as_vbase1 = 0;
 	as->as_pbase1 = 0;
 	as->as_npages1 = 0;
+	as->as_flags1 = 0;
 	as->as_vbase2 = 0;
 	as->as_pbase2 = 0;
 	as->as_npages2 = 0;
+	as->as_flags2 = 0;
 	as->as_stackpbase = 0;
 
 	return as;
@@ -285,19 +320,32 @@ as_define_region(struct addrspace *as, vaddr_t vaddr, size_t sz,
 	npages = sz / PAGE_SIZE;
 
 	/* We don't use these - all pages are read-write */
+#if OPT_A3
+	// Set flags to appropriate flag values so that they can be OR'd together.
+	readable = readable ? PF_R : 0;
+	writeable = writeable ? PF_W : 0;
+	executable = executable ? PF_X : 0;
+#else
 	(void)readable;
 	(void)writeable;
 	(void)executable;
-
+#endif
+	
 	if (as->as_vbase1 == 0) {
 		as->as_vbase1 = vaddr;
 		as->as_npages1 = npages;
+#if OPT_A3
+		as->as_flags1 = readable | writeable | executable;
+#endif
 		return 0;
 	}
 
 	if (as->as_vbase2 == 0) {
 		as->as_vbase2 = vaddr;
 		as->as_npages2 = npages;
+#if OPT_A3
+		as->as_flags2 = readable | writeable | executable;
+#endif
 		return 0;
 	}
 
