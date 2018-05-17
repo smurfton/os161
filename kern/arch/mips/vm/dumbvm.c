@@ -219,7 +219,7 @@ vm_fault(int faulttype, vaddr_t faultaddress)
 		ehi = faultaddress;
 #if OPT_A3
 		elo = paddr | TLBLO_VALID;
-		if (flags & PF_W) {
+		if (flags & PF_W || as->as_ldcomplete == false) {
 			elo |= TLBLO_DIRTY;
 		}
 #else
@@ -233,7 +233,7 @@ vm_fault(int faulttype, vaddr_t faultaddress)
 #if OPT_A3
 	ehi = faultaddress;
 	elo = paddr | TLBLO_VALID;
-	if (flags & PF_W) {
+	if (flags & PF_W || as->as_ldcomplete == false) {
 		elo |= TLBLO_DIRTY;
 	}
 	DEBUG(DB_VM, "Ran out of TLB entries!\ndumbvm: 0x%x -> 0x%x\n", faultaddress, paddr);
@@ -258,11 +258,14 @@ as_create(void)
 	as->as_vbase1 = 0;
 	as->as_pbase1 = 0;
 	as->as_npages1 = 0;
-	as->as_flags1 = 0;
 	as->as_vbase2 = 0;
 	as->as_pbase2 = 0;
 	as->as_npages2 = 0;
+#if OPT_A3
+	as->as_flags1 = 0;
 	as->as_flags2 = 0;
+	as->as_ldcomplete = false;
+#endif /* OPT_A3 */
 	as->as_stackpbase = 0;
 
 	return as;
@@ -301,7 +304,12 @@ as_activate(void)
 void
 as_deactivate(void)
 {
+#if OPT_A3
+	struct addrspace *as = curproc_getas();
+	as->as_ldcomplete = false;
+#else
 	/* nothing */
+#endif
 }
 
 int
@@ -395,8 +403,23 @@ as_prepare_load(struct addrspace *as)
 int
 as_complete_load(struct addrspace *as)
 {
+#if OPT_A3
+	int i, spl;
+	// frob tlb
+   /* Disable interrupts on this CPU while frobbing the TLB. */
+   spl = splhigh();
+
+   for (i=0; i<NUM_TLB; i++) {
+      tlb_write(TLBHI_INVALID(i), TLBLO_INVALID(), i);
+   }
+	as->as_ldcomplete = true;
+
+   splx(spl);
+	return 0;
+#else
 	(void)as;
 	return 0;
+#endif
 }
 
 int
@@ -422,7 +445,11 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 	new->as_npages1 = old->as_npages1;
 	new->as_vbase2 = old->as_vbase2;
 	new->as_npages2 = old->as_npages2;
-
+#if OPT_A3
+	new->as_flags1 = old->as_flags1;
+	new->as_flags2 = old->as_flags2;
+	new->as_ldcomplete = old->as_ldcomplete;
+#endif /* OPT_A3 */
 	/* (Mis)use as_prepare_load to allocate some physical memory. */
 	if (as_prepare_load(new)) {
 		as_destroy(new);

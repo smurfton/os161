@@ -66,6 +66,10 @@ struct addrspace {
   int as_flags2;
 #endif /* OPT_A3 */
   paddr_t as_stackpbase;
+
+#if OPT_A3
+  bool as_ldcomplete;
+#endif
 };
 
 /*
